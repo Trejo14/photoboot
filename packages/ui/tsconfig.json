@@ -1,0 +1,7 @@
+{
+  "extends": "@photobooth/config/tsconfig/next.json",
+  "compilerOptions": {
+    "baseUrl": "."
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

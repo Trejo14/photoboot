@@ -1,0 +1,69 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: photobooth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: photobooth
+      POSTGRES_PASSWORD: photobooth
+      POSTGRES_DB: photobooth
+    ports:
+      - "55432:5432"
+    volumes:
+      - ./docker/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U photobooth -d photobooth"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: photobooth-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./docker/data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: photobooth-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: photobooth
+      MINIO_ROOT_PASSWORD: photobooth-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./docker/data/minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./docker/minio/policy.json:/policy.json:ro
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 photobooth photobooth-secret &&
+      mc mb --ignore-existing local/photobooth &&
+      mc admin policy create local photobooth-rw /policy.json &&
+      mc admin user add local boothapp boothapp-secret &&
+      mc admin policy attach local photobooth-rw --user boothapp &&
+      mc anonymous set download local/photobooth &&
+      echo 'MinIO ready: bucket=photobooth user=boothapp'
+      "

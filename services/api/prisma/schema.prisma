@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  plan      String   @default("basic")
+  createdAt DateTime @default(now())
+
+  events Event[]
+}
+
+model Event {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  themeConfig    Json         @default("{}")
+  startDate      DateTime
+  endDate        DateTime?
+  isOffline      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  booths       Booth[]
+  photos       Photo[]
+  templates    Template[]
+
+  @@index([organizationId])
+}
+
+model Booth {
+  id          String    @id @default(cuid())
+  eventId     String
+  deviceToken String    @unique
+  name        String
+  lastSeenAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  photos Photo[]
+
+  @@index([eventId])
+}
+
+model Photo {
+  id           String    @id @default(cuid())
+  eventId      String
+  boothId      String
+  type         String    @default("single")
+  originalUrl  String
+  processedUrl String?
+  aiStyle      String?
+  status       String    @default("pending")
+  deliveredVia String[]  @default([])
+  createdAt    DateTime  @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  booth Booth @relation(fields: [boothId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([boothId])
+  @@index([status])
+}
+
+model Template {
+  id         String @id @default(cuid())
+  eventId    String
+  layoutJson Json   @default("{}")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
