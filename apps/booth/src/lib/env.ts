@@ -1,9 +1,18 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  NEXT_PUBLIC_API_URL: z.string().url().default("http://localhost:4000"),
+  API_URL: z.string().url().default("http://localhost:4000"),
+  GALLERY_URL: z.string().url().default("http://localhost:3002"),
+  BIRDCAM_ENV: z.enum(["development", "production"]).default("production"),
 });
 
-export const env = envSchema.parse({
-  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+const parsed = envSchema.parse({
+  API_URL: import.meta.env.VITE_API_URL,
+  GALLERY_URL: import.meta.env.VITE_GALLERY_URL,
+  BIRDCAM_ENV: import.meta.env.VITE_BIRDCAM_ENV,
 });
+
+export const env = {
+  ...parsed,
+  IS_DEV: parsed.BIRDCAM_ENV === "development",
+};

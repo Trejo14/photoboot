@@ -43,18 +43,22 @@ export async function markFailed(id: string, error: string): Promise<void> {
   }
 }
 
-export async function flushPending(token: string): Promise<{ synced: number; failed: number }> {
+export async function flushPending(
+  token: string
+): Promise<{ synced: number; failed: number; photoIds: string[] }> {
   const db = await getDB();
   const pending = await listPending();
   let synced = 0;
   let failed = 0;
+  const photoIds: string[] = [];
 
   for (const entry of pending) {
     await db.put("queue", { ...entry, status: "syncing" });
     try {
-      await uploadPhoto(token, entry);
+      const photoId = await uploadPhoto(token, entry);
       await markSynced(entry.id);
       synced++;
+      photoIds.push(photoId);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error desconocido";
       await markFailed(entry.id, message);
@@ -62,5 +66,5 @@ export async function flushPending(token: string): Promise<{ synced: number; fai
     }
   }
 
-  return { synced, failed };
+  return { synced, failed, photoIds };
 }

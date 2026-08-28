@@ -1,5 +1,3 @@
-import { createNextEslintConfig } from "@photobooth/config/eslint/next";
-import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createViteEslintConfig } from "@photobooth/config/eslint/vite";
 
-export default createNextEslintConfig(dirname(fileURLToPath(import.meta.url)));
+export default createViteEslintConfig();

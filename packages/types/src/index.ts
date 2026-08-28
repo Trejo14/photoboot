@@ -116,3 +116,39 @@ export interface HealthOutput {
   service: string;
   timestamp: string;
 }
+
+// --- Licencias ---
+export type LicensePlan = "free" | "pro" | "lifetime";
+
+export type LicenseStatus = "active" | "revoked";
+
+export interface ActivateLicenseInput {
+  licenseKey: string;
+}
+
+export interface ActivateLicenseOutput {
+  plan: LicensePlan;
+  expiresAt: number | null;
+  graceDays: number;
+}
+
+export interface ValidateLicenseOutput {
+  plan: LicensePlan;
+  expiresAt: number | null;
+  graceDays: number;
+}
+
+export interface LicenseSummary {
+  id: string;
+  licenseKey: string;
+  plan: LicensePlan;
+  status: LicenseStatus;
+  maxBooths: number;
+  deviceToken: string | null;
+  organizationId: string | null;
+  activatedAt: string | null;
+  lastValidatedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  organization?: { id: string; name: string } | null;
+}

@@ -3,6 +3,7 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AppModule } from "./app.module";
+import express from "express";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,6 +15,12 @@ async function bootstrap() {
     .filter(Boolean);
 
   app.enableCors({ origin: corsOrigin });
+
+  app.use(
+    "/payments/webhook",
+    express.raw({ type: "application/json" })
+  );
+
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false })
   );

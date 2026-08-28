@@ -5,7 +5,10 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1).optional(),
   PORT: z.coerce.number().int().positive().default(4000),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
-  JWT_SECRET: z.string().min(1).default("dev-secret"),
+  JWT_SECRET: z.string().min(1),
+  ADMIN_KEY: z.string().min(1),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().default("noreply@birdcam.app"),
   S3_ENDPOINT: z.string().min(1),
   S3_REGION: z.string().default("us-east-1"),
   S3_BUCKET: z.string().min(1),
@@ -13,6 +16,13 @@ const envSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().min(1),
   S3_FORCE_PATH_STYLE: z.string().default("true"),
   S3_PUBLIC_BASE_URL: z.string().min(1),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_PRO_MONTHLY: z.string().optional(),
+  STRIPE_PRICE_PRO_YEARLY: z.string().optional(),
+  STRIPE_PRICE_LIFETIME: z.string().optional(),
+  STRIPE_SUCCESS_URL: z.string().url().optional(),
+  STRIPE_CANCEL_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -1,11 +1,14 @@
 {
-  "extends": "@photobooth/config/tsconfig/next.json",
+  "extends": "@photobooth/config/tsconfig/base.json",
   "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["src", "vite.config.ts"],
+  "exclude": ["node_modules", "dist", "src-tauri"]
 }

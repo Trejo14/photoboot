@@ -5,8 +5,8 @@ import type { QueueEntry } from "./db";
 export async function uploadPhoto(
   token: string,
   entry: QueueEntry
-): Promise<void> {
-  const presignRes = await fetch(`${env.NEXT_PUBLIC_API_URL}/photos/presign`, {
+): Promise<string> {
+  const presignRes = await fetch(`${env.API_URL}/photos/presign`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -34,7 +34,7 @@ export async function uploadPhoto(
     throw new Error(`upload ${putRes.status}`);
   }
 
-  const createRes = await fetch(`${env.NEXT_PUBLIC_API_URL}/photos`, {
+  const createRes = await fetch(`${env.API_URL}/photos`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -49,4 +49,5 @@ export async function uploadPhoto(
   if (!createRes.ok) {
     throw new Error(`create ${createRes.status}`);
   }
+  return presign.photoId;
 }

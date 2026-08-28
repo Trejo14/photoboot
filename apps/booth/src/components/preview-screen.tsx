@@ -1,5 +1,3 @@
-"use client";
-
 import { Button } from "@photobooth/ui";
 
 interface Props {
@@ -12,7 +10,6 @@ export function PreviewScreen({ imageUrl, onSave, onRetake }: Props) {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-background p-4">
       <h2 className="text-2xl font-bold">¿Listo?</h2>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={imageUrl}
         alt="Vista previa"

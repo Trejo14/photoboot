@@ -1,5 +1,3 @@
-"use client";
-
 interface Props {
   online: boolean;
   pending: number;

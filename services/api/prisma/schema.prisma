@@ -13,7 +13,42 @@ model Organization {
   plan      String   @default("basic")
   createdAt DateTime @default(now())
 
-  events Event[]
+  events   Event[]
+  licenses License[]
+  users    User[]
+}
+
+model User {
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  name                  String?
+  password              String?
+  phone                 String?
+  plan                  String    @default("free") // free | pro | lifetime
+  planStatus            String? // active | canceled | past_due | trialing
+  planExpiresAt         DateTime?
+  stripeCustomerId      String?   @unique
+  stripeSubscriptionId  String?   @unique
+  organizationId        String?
+  createdAt             DateTime  @default(now())
+
+  organization      Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  verificationCodes VerificationCode[]
+}
+
+model VerificationCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  userId    String?
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email, code])
+  @@index([userId])
 }
 
 model Event {
@@ -76,4 +111,22 @@ model Template {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
+}
+
+model License {
+  id              String    @id @default(cuid())
+  licenseKey      String    @unique
+  plan            String    @default("free") // free | pro | lifetime
+  status          String    @default("active") // active | revoked
+  maxBooths       Int       @default(1)
+  deviceToken     String?   @unique
+  organizationId  String?
+  activatedAt     DateTime?
+  lastValidatedAt DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
 }

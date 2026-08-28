@@ -4,14 +4,21 @@ export interface CameraHandle {
 }
 
 export async function startCamera(
-  videoEl: HTMLVideoElement
+  videoEl: HTMLVideoElement,
+  deviceId?: string
 ): Promise<CameraHandle> {
   const stream = await navigator.mediaDevices.getUserMedia({
-    video: {
-      facingMode: "user",
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-    },
+    video: deviceId
+      ? {
+          deviceId: { exact: deviceId },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        }
+      : {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
     audio: false,
   });
 
