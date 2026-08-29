@@ -74,12 +74,19 @@ export class AuthService {
     password: string
   ): Promise<{
     token: string;
-    user: { id: string; email: string; name: string | null };
+    user: {
+      id: string;
+      email: string;
+      name: string | null;
+      organizationId: string | null;
+      organization: { id: string; name: string; plan: string } | null;
+    };
   }> {
     const normalizedEmail = email.toLowerCase().trim();
 
     const user = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
+      include: { organization: true },
     });
 
     if (!user) {
@@ -101,7 +108,19 @@ export class AuthService {
 
     return {
       token,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        organizationId: user.organizationId,
+        organization: user.organization
+          ? {
+              id: user.organization.id,
+              name: user.organization.name,
+              plan: user.organization.plan,
+            }
+          : null,
+      },
     };
   }
 

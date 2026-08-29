@@ -2,7 +2,7 @@ import { downloadSteps } from "@/lib/content";
 import { env } from "@/lib/env";
 import { Reveal } from "./reveal";
 import { BoothSetupMockup, IpadFrame } from "./mockups";
-import { ArrowRightIcon, CheckIcon } from "./icons";
+import { DownloadIcon, CheckIcon } from "./icons";
 
 export function Download() {
   return (
@@ -13,11 +13,11 @@ export function Download() {
             Descargar
           </p>
           <h2 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Instala la cabina en tu <span className="text-gradient">tablet</span>
+            Instala la cabina en tu <span className="text-gradient">computadora</span>
           </h2>
           <p className="mt-4 text-base text-muted-foreground sm:text-lg">
-            No hay instaladores ni configuraciones técnicas. Solo abre la app,
-            conéctala a tu evento y captura.
+            Descarga el instalador de Birdcam, completa el inicio de sesión una sola vez
+            y conéctala a tu evento para empezar a capturar.
           </p>
         </Reveal>
 
@@ -51,9 +51,13 @@ export function Download() {
                 </ol>
 
                 <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                  <a href={env.NEXT_PUBLIC_BOOTH_URL} className="btn-gradient h-12 px-7 text-base">
-                    Abrir la cabina
-                    <ArrowRightIcon className="size-4" />
+                  <a
+                    href={env.NEXT_PUBLIC_DOWNLOAD_URL}
+                    className="btn-gradient h-12 px-7 text-base"
+                    download
+                  >
+                    Descargar la cabina
+                    <DownloadIcon className="size-4" />
                   </a>
                   <a href={env.NEXT_PUBLIC_ADMIN_URL} className="btn-ghost h-12 px-7 text-base">
                     Panel de admin
@@ -62,7 +66,7 @@ export function Download() {
 
                 <p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground">
                   <CheckIcon className="size-4 text-green-500" />
-                  Compatible con iPad y tablets Android (Chrome / Safari)
+                  Compatible con Windows (instalador .exe)
                 </p>
               </div>
             </div>

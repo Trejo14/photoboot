@@ -10,8 +10,8 @@ import {
   isLicenseExpired,
   validateLicense,
 } from "@/lib/license";
-import { isFirstRun, markSetupComplete } from "@/lib/setup-state";
-import { getAuthToken, logout } from "@/lib/api";
+import { logout } from "@/lib/api";
+import { markSetupComplete } from "@/lib/setup-state";
 import { enterKioskMode, exitKioskMode, listen, invoke } from "@/lib/tauri";
 import { SplashScreen, STATUS_MESSAGES } from "@/components/splash-screen";
 import { WelcomeWizard } from "@/components/welcome-wizard";
@@ -36,32 +36,14 @@ import { printImage } from "@/lib/print";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function runBootSequence(send: (event: any) => void) {
   send({ type: "SET_SPLASH", progress: 10, text: STATUS_MESSAGES[0] ?? "" });
-  await new Promise((r) => setTimeout(r, 300));
-
-  const firstRun = await isFirstRun();
-  send({ type: "SET_SPLASH", progress: 25, text: STATUS_MESSAGES[0] ?? "" });
   await new Promise((r) => setTimeout(r, 200));
 
-  if (firstRun) {
-    send({ type: "SPLASH_COMPLETE" });
-    return;
-  }
-
-  const token = await getAuthToken();
+  const d = await getDevice();
   send({ type: "SET_SPLASH", progress: 40, text: STATUS_MESSAGES[1] ?? "" });
   await new Promise((r) => setTimeout(r, 200));
 
-  if (!token) {
-    send({ type: "SPLASH_COMPLETE" });
-    return;
-  }
-
-  const d = await getDevice();
-  send({ type: "SET_SPLASH", progress: 60, text: STATUS_MESSAGES[1] ?? "" });
-  await new Promise((r) => setTimeout(r, 200));
-
   const lic = await getLicense();
-  send({ type: "SET_SPLASH", progress: 80, text: STATUS_MESSAGES[2] ?? "" });
+  send({ type: "SET_SPLASH", progress: 60, text: STATUS_MESSAGES[2] ?? "" });
   await new Promise((r) => setTimeout(r, 200));
 
   if (d && lic && isLicenseExpired(lic)) {

@@ -1,14 +1,17 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Request, UseGuards } from "@nestjs/common";
 import { EventsService } from "./events.service";
 import { CreateEventDto } from "./dto/create-event.dto";
+import { JwtAuthGuard } from "../auth/jwt.guard";
+import type { AuthenticatedRequest } from "../auth/jwt.guard";
 
 @Controller("events")
 export class EventsController {
   constructor(private readonly events: EventsService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Get()
-  list() {
-    return this.events.list();
+  list(@Request() req: AuthenticatedRequest) {
+    return this.events.listForUser(req.user!.organizationId);
   }
 
   @Post()

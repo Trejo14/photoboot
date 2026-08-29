@@ -28,3 +28,4 @@ docker/data/
 coverage/
 .vscode/
 .idea/
+.github/

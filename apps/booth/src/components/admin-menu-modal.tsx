@@ -6,16 +6,22 @@ import {
   CalendarIcon,
   LogOutIcon,
   LockIcon,
+  SettingsIcon,
 } from "./icons";
-import { verifyAdminPin } from "@/lib/auth";
 import { invoke, listen, exitKioskMode, isFullscreen } from "@/lib/tauri";
+import { getSettings, saveSettings, type Settings } from "@/lib/settings";
 
 interface Props {
   onSwitchEvent: () => void;
   onLogout: () => void;
 }
 
-type View = "pin" | "menu";
+type View = "pin" | "menu" | "settings";
+
+interface CameraDevice {
+  deviceId: string;
+  label: string;
+}
 
 export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
   const [open, setOpen] = useState(false);
@@ -24,6 +30,8 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [inKiosk, setInKiosk] = useState(false);
+  const [settings, setSettingsState] = useState<Settings | null>(null);
+  const [cameras, setCameras] = useState<CameraDevice[]>([]);
 
   useEffect(() => {
     void listen<unknown>("admin-unlock", async () => {
@@ -40,8 +48,9 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const valid = await verifyAdminPin(pin.trim());
-      if (valid) {
+      const current = await getSettings();
+      if (pin.trim() === current.adminPin) {
+        setSettingsState(current);
         setView("menu");
       } else {
         setError("PIN incorrecto");
@@ -51,6 +60,24 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function openSettings() {
+    setView("settings");
+    if (!settings) setSettingsState(await getSettings());
+    navigator.mediaDevices.enumerateDevices().then((devices) => {
+      const cams = devices
+        .filter((d) => d.kind === "videoinput")
+        .map((d) => ({ deviceId: d.deviceId, label: d.label || "Cámara" }));
+      setCameras(cams);
+    });
+  }
+
+  async function updateSettings(patch: Partial<Settings>) {
+    if (!settings) return;
+    const next = { ...settings, ...patch };
+    setSettingsState(next);
+    await saveSettings(next);
   }
 
   function handleClose() {
@@ -117,6 +144,73 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
             </form>
           </CardContent>
         </Card>
+      ) : view === "settings" ? (
+        <Card className="w-full max-w-sm animate-fade-in">
+          <CardHeader>
+            <div className="flex justify-center">
+              <LogoBirdcam size="6" className="text-white" />
+            </div>
+            <CardTitle className="text-center text-lg">Configuración</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!settings ? (
+              <p className="text-center text-sm text-muted-foreground">Cargando…</p>
+            ) : (
+              <div className="space-y-4">
+                {cameras.length > 1 && (
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Cámara</label>
+                    <select
+                      value={settings.cameraDeviceId ?? ""}
+                      onChange={(e) =>
+                        void updateSettings({
+                          cameraDeviceId: e.target.value || null,
+                        })
+                      }
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">Automática</option>
+                      {cameras.map((c) => (
+                        <option key={c.deviceId} value={c.deviceId}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">PIN de administrador</label>
+                  <Input
+                    type="password"
+                    inputMode="numeric"
+                    value={settings.adminPin}
+                    onChange={(e) => void updateSettings({ adminPin: e.target.value })}
+                    placeholder="1234"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => setView("menu")}
+                  >
+                    Volver
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1"
+                    onClick={handleClose}
+                  >
+                    Listo
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       ) : (
         <Card className="w-full max-w-sm animate-fade-in">
           <CardHeader>
@@ -158,6 +252,17 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
                 <div>
                   <p className="text-sm font-medium text-white">Cambiar de evento</p>
                   <p className="text-xs text-white/40">Seleccionar otro evento activo</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => void openSettings()}
+                className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/5 p-3 text-left transition-colors hover:bg-white/10"
+              >
+                <SettingsIcon className="h-5 w-5 text-[#34d399]" />
+                <div>
+                  <p className="text-sm font-medium text-white">Configuración</p>
+                  <p className="text-xs text-white/40">Cámara, impresora y PIN</p>
                 </div>
               </button>
 

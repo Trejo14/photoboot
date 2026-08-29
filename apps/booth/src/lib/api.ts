@@ -90,14 +90,24 @@ export async function register(
   return data;
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string | null;
+  organizationId: string | null;
+  organization: { id: string; name: string; plan: string } | null;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: AuthUser;
+}
+
 export async function login(
   email: string,
   password: string
-): Promise<{ token: string; user: { id: string; email: string; name: string | null } }> {
-  const data = await apiRequest<{
-    token: string;
-    user: { id: string; email: string; name: string | null };
-  }>("/auth/login", {
+): Promise<LoginResponse> {
+  const data = await apiRequest<LoginResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
@@ -119,4 +129,18 @@ export async function getProfile(): Promise<{
 
 export async function logout(): Promise<void> {
   await setAuthToken(null);
+}
+
+export interface EventItem {
+  id: string;
+  name: string;
+  organizationId: string;
+  startDate: string;
+  endDate: string | null;
+  isOffline: boolean;
+  _count: { booths: number; photos: number };
+}
+
+export async function listEvents(): Promise<EventItem[]> {
+  return apiRequest<EventItem[]>("/events");
 }

@@ -2,18 +2,10 @@ import { useEffect, useState } from "react";
 import { Button, Input } from "@photobooth/ui";
 import { LogoBirdcam } from "./logo";
 import { CalendarIcon, ImageIcon, PlusIcon, RefreshIcon, WifiOffIcon, ExclamationIcon } from "./icons";
-import { env } from "@/lib/env";
+import { listEvents, type EventItem } from "@/lib/api";
 
 interface Props {
   onRegister: (info: { eventId: string; boothName: string }) => Promise<void>;
-}
-
-interface EventItem {
-  id: string;
-  name: string;
-  startDate: string;
-  endDate: string | null;
-  _count: { booths: number; photos: number };
 }
 
 export function EventMenuScreen({ onRegister }: Props) {
@@ -47,9 +39,7 @@ export function EventMenuScreen({ onRegister }: Props) {
     setLoadingEvents(true);
     setError(null);
     try {
-      const res = await fetch(`${env.API_URL}/events`);
-      if (!res.ok) throw new Error(`API ${res.status}`);
-      const data = (await res.json()) as EventItem[];
+      const data = await listEvents();
       setEvents(data);
     } catch {
       setError("No pudimos conectar con el servidor. Verifica tu conexión a internet.");

@@ -5,6 +5,7 @@ import { S3Module } from "./s3/s3.module";
 import { EmailModule } from "./email/email.module";
 import { AuthModule } from "./auth/auth.module";
 import { HealthController } from "./health/health.controller";
+import { DownloadController } from "./download/download.controller";
 import { EventsModule } from "./events/events.module";
 import { BoothsModule } from "./booths/booths.module";
 import { PhotosModule } from "./photos/photos.module";
@@ -24,6 +25,6 @@ import { PaymentsModule } from "./payments/payments.module";
     LicensesModule,
     PaymentsModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, DownloadController],
 })
 export class AppModule {}

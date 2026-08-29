@@ -132,7 +132,7 @@ export const steps: Step[] = [
     number: "01",
     title: "Crea tu evento",
     description:
-      "Registra tu evento en el panel y genera el QR que vincula la tablet de la cabina.",
+      "Registra tu evento en el panel y queda disponible para conectar tu cabina desde la app.",
   },
   {
     number: "02",
@@ -254,19 +254,19 @@ export interface DownloadStep {
 
 export const downloadSteps: DownloadStep[] = [
   {
-    title: "Abre la app en tu tablet",
+    title: "Descarga el instalador",
     description:
-      "Entra al enlace de Birdcam desde la tablet de la cabina. Se abre sola, sin instaladores.",
+      "Haz clic en el botón y descarga Birdcam para Windows (instalador .exe). Lo instalas como cualquier otro programa.",
   },
   {
-    title: "Añádela a la pantalla de inicio",
+    title: "Inicia sesión y elige tu evento",
     description:
-      "Así se instala como app (PWA): funciona a pantalla completa y guarda las fotos sin internet.",
+      "Abre la app, inicia sesión con tu cuenta una sola vez y selecciona el evento al que conectará la cabina.",
   },
   {
-    title: "Conecta tu evento y captura",
+    title: "Captura",
     description:
-      "Pega el ID del evento, confirma la cabina y la cámara queda lista con su cuenta regresiva.",
+      "Conecta la cámara y la cuenta regresiva queda lista. Marcos, QR e impresión funcionan 100% locales, sin internet.",
   },
 ];
 

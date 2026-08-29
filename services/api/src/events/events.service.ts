@@ -7,8 +7,10 @@ import type { CreateEventDto } from "./dto/create-event.dto";
 export class EventsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list() {
+  async listForUser(organizationId: string | null) {
+    if (!organizationId) return [];
     return this.prisma.event.findMany({
+      where: { organizationId },
       orderBy: { createdAt: "desc" },
       include: { _count: { select: { booths: true, photos: true } } },
     });
