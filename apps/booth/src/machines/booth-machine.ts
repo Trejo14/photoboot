@@ -8,6 +8,8 @@ export interface BoothContext {
   device: DeviceInfo | undefined;
   license: LicenseInfo | undefined;
   licenseBlocked: boolean;
+  eventFinished: boolean;
+  eventName: string | null;
   format: PhotoFormat | undefined;
   frameTemplate: FrameTemplate | undefined;
   frames: Blob[];
@@ -25,7 +27,13 @@ export interface BoothContext {
 
 export type BoothEvent =
   | { type: "SPLASH_COMPLETE" }
-  | { type: "BOOT_COMPLETE"; device?: DeviceInfo; license?: LicenseInfo }
+  | {
+      type: "BOOT_COMPLETE";
+      device?: DeviceInfo;
+      license?: LicenseInfo;
+      eventFinished?: boolean;
+      eventName?: string | null;
+    }
   | { type: "WIZARD_COMPLETE" }
   | { type: "LOGIN_SUCCESS" }
   | { type: "SELECT_PLAN"; plan: "free" | "pro" | "lifetime" }
@@ -73,7 +81,8 @@ export type BoothScreen =
   | "vista-final"
   | "imprimiendo"
   | "agradecimiento"
-  | "license";
+  | "license"
+  | "event-finished";
 
 export const boothMachine = setup({
   types: {
@@ -91,6 +100,8 @@ export const boothMachine = setup({
     device: undefined,
     license: undefined,
     licenseBlocked: false,
+    eventFinished: false,
+    eventName: null,
     format: undefined,
     frameTemplate: undefined,
     frames: [],
@@ -143,11 +154,23 @@ export const boothMachine = setup({
         },
         BOOT_COMPLETE: [
           {
+            target: "event-finished",
+            guard: ({ event }) => !!event.device && !!event.eventFinished,
+            actions: assign({
+              device: ({ event }) => event.device,
+              license: ({ event }) => event.license,
+              eventFinished: true,
+              eventName: ({ event }) => event.eventName ?? null,
+            }),
+          },
+          {
             target: "format-selection",
             guard: "hasDevice",
             actions: assign({
               device: ({ event }) => event.device,
               license: ({ event }) => event.license,
+              eventFinished: false,
+              eventName: null,
             }),
           },
           {
@@ -155,6 +178,8 @@ export const boothMachine = setup({
             actions: assign({
               device: ({ event }) => event.device,
               license: ({ event }) => event.license,
+              eventFinished: false,
+              eventName: null,
             }),
           },
         ],
@@ -337,6 +362,19 @@ export const boothMachine = setup({
         HIDE_LICENSE_SCREEN: "capture",
       },
     },
+
+    "event-finished": {
+      on: {
+        SWITCH_EVENT: {
+          target: "event-menu",
+          actions: assign({ eventFinished: false, eventName: null }),
+        },
+        LOGOUT: {
+          target: "login",
+          actions: assign({ eventFinished: false, eventName: null }),
+        },
+      },
+    },
   },
 });
 
@@ -362,6 +400,7 @@ export function getScreenForState(state: {
     imprimiendo: "imprimiendo",
     agradecimiento: "agradecimiento",
     license: "license",
+    "event-finished": "event-finished",
   };
   return map[val] ?? "splash";
 }

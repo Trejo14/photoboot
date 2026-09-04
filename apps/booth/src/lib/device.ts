@@ -17,7 +17,9 @@ export async function getDevice(): Promise<DeviceInfo | undefined> {
   return db.get("device", "device");
 }
 
-export async function setDevice(device: Omit<DeviceInfo, "key">): Promise<void> {
+export async function setDevice(
+  device: Omit<DeviceInfo, "key">,
+): Promise<void> {
   const next: DeviceInfo = { key: "device", ...device };
   const store = await getStore();
   if (store) {
@@ -37,6 +39,27 @@ export async function sendHeartbeat(deviceToken: string): Promise<void> {
   if (!res.ok) {
     throw new Error(`Heartbeat fallido (${res.status})`);
   }
+}
+
+export interface BoothEventStatus {
+  eventId: string;
+  eventName: string | null;
+  finished: boolean;
+  endDate: string | null;
+}
+
+export async function getBoothEventStatus(
+  deviceToken: string,
+): Promise<BoothEventStatus> {
+  const res = await fetch(`${env.API_URL}/booths/me/status`, {
+    headers: { "X-Device-Token": deviceToken },
+  });
+  if (!res.ok) {
+    throw new Error(
+      `No se pudo verificar el estado del evento (${res.status})`,
+    );
+  }
+  return res.json() as Promise<BoothEventStatus>;
 }
 
 export async function clearDevice(): Promise<void> {

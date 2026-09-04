@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
 import type { Booth } from "@prisma/client";
 import { BoothsService } from "./booths.service";
 import { RegisterBoothDto } from "./dto/register-booth.dto";
@@ -24,5 +24,11 @@ export class BoothsController {
   @Post("rotate-token")
   rotateToken(@CurrentBooth() booth: Booth) {
     return this.booths.rotateToken(booth);
+  }
+
+  @UseGuards(DeviceTokenGuard)
+  @Get("me/status")
+  getStatus(@CurrentBooth() booth: Booth) {
+    return this.booths.getStatus(booth);
   }
 }

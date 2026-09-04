@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMachine } from "@xstate/react";
 import { boothMachine, getScreenForState } from "./machines/booth-machine";
 import { env } from "@/lib/env";
-import { getDevice, setDevice, sendHeartbeat } from "@/lib/device";
+import {
+  getDevice,
+  setDevice,
+  sendHeartbeat,
+  getBoothEventStatus,
+} from "@/lib/device";
 import type { DeviceInfo } from "@/lib/db";
 import { enqueuePhoto, flushPending, listPending } from "@/lib/queue";
 import { getLicense, isLicenseExpired, validateLicense } from "@/lib/license";
@@ -23,6 +28,7 @@ import { PreviewScreen } from "@/components/preview-screen";
 import { VistaFinalScreen } from "@/components/vista-final-screen";
 import { ImprimiendoScreen } from "@/components/imprimiendo-screen";
 import { AgradecimientoScreen } from "@/components/agradecimiento-screen";
+import { EventFinishedScreen } from "@/components/event-finished-screen";
 import { AdminMenuModal } from "@/components/admin-menu-modal";
 import { AdminHotDot } from "@/components/admin-hot-dot";
 import { LicenseScreen } from "@/components/license-screen";
@@ -57,13 +63,33 @@ async function runBootSequence(send: (event: any) => void) {
       .catch(() => undefined);
   }
 
+  // Only checkable online; offline booths keep working until the next
+  // successful check (matches the offline-first sync/license design).
+  let eventFinished = false;
+  let eventName: string | null = null;
+  if (d && navigator.onLine) {
+    try {
+      const status = await getBoothEventStatus(d.deviceToken);
+      eventFinished = status.finished;
+      eventName = status.eventName;
+    } catch {
+      // ignore — treat as not-finished, don't block the booth on a flaky request
+    }
+  }
+
   send({ type: "SET_SPLASH", progress: 100, text: STATUS_MESSAGES[3] ?? "" });
   await new Promise((r) => setTimeout(r, 400));
 
   if (d) {
     await enterKioskMode();
   }
-  send({ type: "BOOT_COMPLETE", device: d, license: lic });
+  send({
+    type: "BOOT_COMPLETE",
+    device: d,
+    license: lic,
+    eventFinished,
+    eventName,
+  });
 }
 
 function loadImageBlob(blob: Blob): Promise<HTMLImageElement> {
@@ -340,6 +366,7 @@ export function App() {
     "login",
     "plan-selector",
     "event-menu",
+    "event-finished",
   ].includes(screen);
 
   return (
@@ -410,6 +437,15 @@ export function App() {
 
     if (screen === "event-menu") {
       return <EventMenuScreen onRegister={handleRegister} />;
+    }
+
+    if (screen === "event-finished") {
+      return (
+        <EventFinishedScreen
+          eventName={state.context.eventName}
+          onSwitchEvent={handleSwitchEvent}
+        />
+      );
     }
 
     if (screen === "format-selection") {
