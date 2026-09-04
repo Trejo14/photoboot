@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { Injectable, BadRequestException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
+import { LicensesService } from "../licenses/licenses.service";
 
 @Injectable()
 export class PaymentsService {
@@ -9,7 +10,8 @@ export class PaymentsService {
 
   constructor(
     private readonly config: ConfigService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    private readonly licenses: LicensesService
   ) {
     const secretKey = this.config.get<string>("STRIPE_SECRET_KEY");
     if (secretKey) {
@@ -86,6 +88,98 @@ export class PaymentsService {
     return { url: session.url };
   }
 
+  async createLicenseCheckoutSession(
+    email: string,
+    plan: string,
+    interval?: string
+  ): Promise<{ url: string }> {
+    const stripe = this.getStripe();
+
+    let priceId: string;
+    const isSubscription = plan === "pro";
+    if (plan === "pro") {
+      priceId =
+        interval === "monthly"
+          ? this.config.getOrThrow("STRIPE_PRICE_PRO_MONTHLY")
+          : this.config.getOrThrow("STRIPE_PRICE_PRO_YEARLY");
+    } else if (plan === "lifetime") {
+      priceId = this.config.getOrThrow("STRIPE_PRICE_LIFETIME");
+    } else {
+      throw new BadRequestException("Plan inválido");
+    }
+
+    const successUrl = this.config.getOrThrow("STRIPE_SUCCESS_URL");
+    const cancelUrl = this.config.getOrThrow("STRIPE_CANCEL_URL");
+    const metadata = { kind: "license", plan };
+
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+      customer_email: email,
+      mode: isSubscription ? "subscription" : "payment",
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl,
+      metadata,
+      ...(isSubscription ? { subscription_data: { metadata } } : {}),
+    };
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+
+    if (!session.url) {
+      throw new BadRequestException("Error creando sesión de pago");
+    }
+
+    return { url: session.url };
+  }
+
+  private async handleLicenseCheckoutCompleted(
+    session: Stripe.Checkout.Session
+  ): Promise<void> {
+    const email = session.customer_details?.email ?? session.customer_email;
+    const plan = session.metadata?.plan;
+    if (!email || !plan) return;
+
+    const subscriptionId =
+      typeof session.subscription === "string" ? session.subscription : null;
+    const customerId =
+      typeof session.customer === "string" ? session.customer : null;
+
+    let expiresAt: Date | null = null;
+    if (subscriptionId) {
+      const stripe = this.getStripe();
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const periodEnd = subscription.items.data[0]?.current_period_end;
+      if (periodEnd) {
+        expiresAt = new Date(periodEnd * 1000);
+      }
+    }
+
+    await this.licenses.issueLicense(email, plan, {
+      stripeCustomerId: customerId,
+      stripeSubscriptionId: subscriptionId,
+      expiresAt,
+    });
+  }
+
+  private async updateLicenseFromSubscription(
+    subscription: Stripe.Subscription
+  ): Promise<void> {
+    const periodEnd = subscription.items.data[0]?.current_period_end;
+    const statusMap: Record<string, string> = {
+      active: "active",
+      trialing: "active",
+      past_due: "active",
+      canceled: "revoked",
+      unpaid: "revoked",
+    };
+    await this.prisma.license.updateMany({
+      where: { stripeSubscriptionId: subscription.id },
+      data: {
+        status: statusMap[subscription.status] ?? "active",
+        expiresAt: periodEnd ? new Date(periodEnd * 1000) : null,
+      },
+    });
+  }
+
   async handleWebhook(
     payload: Buffer,
     signature: string
@@ -111,6 +205,10 @@ export class PaymentsService {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+        if (session.metadata?.kind === "license") {
+          await this.handleLicenseCheckoutCompleted(session);
+          break;
+        }
         const userId = session.metadata?.userId;
         const plan = session.metadata?.plan;
         if (userId && plan) {
@@ -146,6 +244,10 @@ export class PaymentsService {
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
+        if (subscription.metadata?.kind === "license") {
+          await this.updateLicenseFromSubscription(subscription);
+          break;
+        }
         const userId = subscription.metadata?.userId;
         if (userId) {
           const statusMap: Record<string, string> = {
@@ -172,6 +274,13 @@ export class PaymentsService {
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
+        if (subscription.metadata?.kind === "license") {
+          await this.prisma.license.updateMany({
+            where: { stripeSubscriptionId: subscription.id },
+            data: { status: "revoked" },
+          });
+          break;
+        }
         const userId = subscription.metadata?.userId;
         if (userId) {
           await this.prisma.user.update({

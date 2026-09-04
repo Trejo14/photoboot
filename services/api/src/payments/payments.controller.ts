@@ -15,6 +15,7 @@ import { PaymentsService } from "./payments.service";
 import { JwtAuthGuard } from "../auth/jwt.guard";
 import type { AuthenticatedRequest } from "../auth/jwt.guard";
 import { CreateCheckoutDto } from "./dto/create-checkout.dto";
+import { CreateLicenseCheckoutDto } from "./dto/create-license-checkout.dto";
 
 @Controller("payments")
 export class PaymentsController {
@@ -30,6 +31,16 @@ export class PaymentsController {
     return this.payments.createCheckoutSession(
       req.user!.id,
       req.user!.email,
+      dto.plan,
+      dto.interval
+    );
+  }
+
+  @Post("license-checkout")
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  createLicenseCheckout(@Body() dto: CreateLicenseCheckoutDto) {
+    return this.payments.createLicenseCheckoutSession(
+      dto.email,
       dto.plan,
       dto.interval
     );

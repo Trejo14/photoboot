@@ -152,3 +152,21 @@ export interface LicenseSummary {
   createdAt: string;
   organization?: { id: string; name: string } | null;
 }
+
+// --- Pedidos manuales (SPEI / PayPal) ---
+export type ManualOrderStatus = "pending" | "paid" | "cancelled";
+export type ManualOrderMethod = "spei" | "paypal";
+
+export interface ManualOrderSummary {
+  id: string;
+  reference: string;
+  method: ManualOrderMethod;
+  email: string;
+  plan: LicensePlan;
+  interval: string | null;
+  amount: number;
+  status: ManualOrderStatus;
+  licenseId: string | null;
+  createdAt: string;
+  paidAt: string | null;
+}

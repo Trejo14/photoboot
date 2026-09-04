@@ -113,20 +113,45 @@ model Template {
   @@index([eventId])
 }
 
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
 model License {
-  id              String    @id @default(cuid())
-  licenseKey      String    @unique
-  plan            String    @default("free") // free | pro | lifetime
-  status          String    @default("active") // active | revoked
-  maxBooths       Int       @default(1)
-  deviceToken     String?   @unique
-  organizationId  String?
-  activatedAt     DateTime?
-  lastValidatedAt DateTime?
-  expiresAt       DateTime?
+  id                   String    @id @default(cuid())
+  licenseKey           String    @unique
+  plan                 String    @default("free") // free | pro | lifetime
+  status               String    @default("active") // active | revoked
+  maxBooths            Int       @default(1)
+  deviceToken          String?   @unique
+  organizationId       String?
+  email                String?
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  activatedAt          DateTime?
+  lastValidatedAt      DateTime?
+  expiresAt            DateTime?
   createdAt       DateTime  @default(now())
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
+}
+
+model ManualOrder {
+  id        String    @id @default(cuid())
+  reference String    @unique
+  method    String    @default("spei") // spei | paypal
+  email     String
+  plan      String // pro | lifetime
+  interval  String? // monthly | yearly | null (lifetime)
+  amount    Int // MXN, pesos enteros
+  status    String    @default("pending") // pending | paid | cancelled
+  licenseId String?
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+
+  @@index([status])
 }

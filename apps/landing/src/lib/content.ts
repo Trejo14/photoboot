@@ -278,14 +278,14 @@ export const footerLinks = {
     { label: "FAQ", href: "#faq" },
   ],
   Empresa: [
-    { label: "Nosotros", href: "#" },
-    { label: "Contacto", href: "#" },
-    { label: "Prensa", href: "#" },
-    { label: "Blog", href: "#" },
+    { label: "Nosotros", href: "/nosotros" },
+    { label: "Contacto", href: "/contacto" },
+    { label: "Prensa", href: "/prensa" },
+    { label: "Blog", href: "/blog" },
   ],
   Legal: [
-    { label: "Términos", href: "#" },
-    { label: "Privacidad", href: "#" },
-    { label: "Cookies", href: "#" },
+    { label: "Términos", href: "/terminos" },
+    { label: "Privacidad", href: "/privacidad" },
+    { label: "Cookies", href: "/cookies" },
   ],
 };
