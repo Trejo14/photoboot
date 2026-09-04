@@ -40,6 +40,7 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [lastAction, setLastAction] = useState<(() => void) | null>(null);
+  const [registered, setRegistered] = useState(false);
 
   function startResendCooldown() {
     setResendCooldown(60);
@@ -77,14 +78,16 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
     try {
       const result = await register(name.trim(), email.trim(), password);
       await setAuthToken(result.token);
-      if (onSelectPlan) {
-        onSelectPlan("free");
-      } else {
-        onAuthenticated();
-      }
+      setRegistered(true);
+      setTimeout(() => {
+        if (onSelectPlan) {
+          onSelectPlan("free");
+        } else {
+          onAuthenticated();
+        }
+      }, 1200);
     } catch (err) {
       setError(mapError(err instanceof Error ? err.message : "No se pudo crear la cuenta"));
-    } finally {
       setLoading(false);
     }
   }
@@ -142,6 +145,7 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
     setError(null);
     setOtpStep("email");
     setLastAction(null);
+    setRegistered(false);
   }
 
   function handleRetry() {
@@ -394,7 +398,17 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
             )}
 
             {/* REGISTER TAB */}
-            {tab === "register" && (
+            {tab === "register" && registered && (
+              <div key="register-success" className="flex flex-col items-center gap-3 py-6 animate-fade-in">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10">
+                  <CheckCircleIcon className="h-8 w-8 text-green-400" />
+                </div>
+                <p className="text-center text-sm font-medium text-foreground">
+                  ¡Cuenta creada! Usuario registrado correctamente.
+                </p>
+              </div>
+            )}
+            {tab === "register" && !registered && (
               <div key="register" className="animate-fade-in">
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-1.5">

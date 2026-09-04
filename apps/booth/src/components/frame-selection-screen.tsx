@@ -23,7 +23,7 @@ export function FrameSelectionScreen({ format, onSelect, onSkip }: Props) {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-8 bg-background p-6">
+    <div className="flex min-h-dvh flex-col items-center gap-8 overflow-y-auto bg-background p-6 py-10">
       <div className="text-center">
         <h1 className="text-3xl font-bold text-foreground">Elige un marco</h1>
         <p className="mt-2 text-muted-foreground">
