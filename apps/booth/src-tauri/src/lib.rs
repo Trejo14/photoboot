@@ -52,6 +52,7 @@ pub fn run() {
             set_autostart,
             list_printers,
             print_thermal,
+            print_default_silent,
             emit_admin_unlock,
             get_device_id,
             open_url
@@ -90,6 +91,14 @@ fn print_thermal(
     png_base64: String,
 ) -> Result<(), String> {
     print::print_thermal(printer, &png_base64)
+}
+
+#[tauri::command]
+fn print_default_silent(
+    printer: Option<String>,
+    png_base64: String,
+) -> Result<(), String> {
+    print::print_default_silent(printer, &png_base64)
 }
 
 #[tauri::command]

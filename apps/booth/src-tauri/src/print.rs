@@ -1,11 +1,16 @@
 use base64::Engine;
 use serde::Serialize;
-use windows::core::{Error, PWSTR};
-use windows::Win32::Graphics::Printing::{
-    ClosePrinter, EndDocPrinter, EndPagePrinter, EnumPrintersW, OpenPrinterW, StartDocPrinterW,
-    StartPagePrinter, WritePrinter, DOC_INFO_1W, PRINTER_ALL_ACCESS, PRINTER_DEFAULTSW,
-    PRINTER_ENUM_LOCAL, PRINTER_HANDLE, PRINTER_INFO_2W,
+use windows::core::{Error, PCWSTR, PWSTR};
+use windows::Win32::Graphics::Gdi::{
+    CreateDCW, DeleteDC, GetDeviceCaps, StretchDIBits, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
+    DIB_RGB_COLORS, HORZRES, SRCCOPY, VERTRES,
 };
+use windows::Win32::Graphics::Printing::{
+    ClosePrinter, EndDocPrinter, EndPagePrinter, EnumPrintersW, GetDefaultPrinterW, OpenPrinterW,
+    StartDocPrinterW, StartPagePrinter, WritePrinter, DOC_INFO_1W, PRINTER_ALL_ACCESS,
+    PRINTER_DEFAULTSW, PRINTER_ENUM_LOCAL, PRINTER_HANDLE, PRINTER_INFO_2W,
+};
+use windows::Win32::Storage::Xps::{EndDoc, EndPage, StartDocW, StartPage, DOCINFOW};
 
 const MAX_THERMAL_WIDTH: u32 = 576;
 
@@ -218,4 +223,132 @@ pub fn print_thermal(printer_name: Option<String>, png_base64: &str) -> Result<(
 
     let escpos = raster_to_escpos(&gray);
     send_raw(&printer, &escpos)
+}
+
+fn get_default_printer_name() -> Result<String, String> {
+    let mut needed: u32 = 0;
+    let _ = unsafe { GetDefaultPrinterW(None, &mut needed) };
+    if needed == 0 {
+        return Err("No hay una impresora predeterminada configurada".to_string());
+    }
+    let mut buf: Vec<u16> = vec![0; needed as usize];
+    let ok = unsafe { GetDefaultPrinterW(Some(PWSTR(buf.as_mut_ptr())), &mut needed) }.as_bool();
+    if !ok {
+        return Err(format!(
+            "No se pudo obtener la impresora predeterminada: {}",
+            Error::from_win32()
+        ));
+    }
+    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    Ok(String::from_utf16_lossy(&buf[..len]))
+}
+
+/// Imprime en la impresora predeterminada (no térmica) usando GDI directo,
+/// sin mostrar el diálogo de impresión de Windows — para que los invitados
+/// del evento no vean esa pantalla.
+pub fn print_default_silent(printer_name: Option<String>, png_base64: &str) -> Result<(), String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(png_base64)
+        .map_err(|e| format!("Imagen base64 inválida: {e}"))?;
+    let img = image::load_from_memory(&bytes)
+        .map_err(|e| format!("No se pudo decodificar la imagen: {e}"))?
+        .to_rgb8();
+    let (img_w, img_h) = (img.width(), img.height());
+
+    let printer = match printer_name {
+        Some(p) => p,
+        None => get_default_printer_name()?,
+    };
+
+    let driver = to_wide("WINSPOOL");
+    let device = to_wide(&printer);
+    let hdc = unsafe { CreateDCW(PWSTR(driver.as_ptr() as *mut u16), PWSTR(device.as_ptr() as *mut u16), PWSTR(std::ptr::null_mut()), None) };
+    if hdc.is_invalid() {
+        return Err(format!("No se pudo abrir la impresora \"{printer}\""));
+    }
+
+    let result = (|| -> Result<(), String> {
+        let doc_name = to_wide("Cabina Photobooth");
+        let doc_info = DOCINFOW {
+            cbSize: std::mem::size_of::<DOCINFOW>() as i32,
+            lpszDocName: PCWSTR(doc_name.as_ptr()),
+            lpszOutput: PCWSTR::null(),
+            lpszDatatype: PCWSTR::null(),
+            fwType: 0,
+        };
+
+        if unsafe { StartDocW(hdc, &doc_info) } <= 0 {
+            return Err(format!("No se pudo iniciar el trabajo de impresión: {}", Error::from_win32()));
+        }
+        if unsafe { StartPage(hdc) } <= 0 {
+            return Err(format!("No se pudo iniciar la página: {}", Error::from_win32()));
+        }
+
+        let page_w = unsafe { GetDeviceCaps(Some(hdc), HORZRES) }.max(1);
+        let page_h = unsafe { GetDeviceCaps(Some(hdc), VERTRES) }.max(1);
+
+        // Encaja la imagen dentro de la página conservando proporción, centrada.
+        let scale = (page_w as f32 / img_w as f32).min(page_h as f32 / img_h as f32);
+        let draw_w = (img_w as f32 * scale).round() as i32;
+        let draw_h = (img_h as f32 * scale).round() as i32;
+        let offset_x = (page_w - draw_w) / 2;
+        let offset_y = (page_h - draw_h) / 2;
+
+        // DIB de 24 bits, filas de abajo hacia arriba, cada fila alineada a 4 bytes.
+        let row_bytes = ((img_w as usize * 3 + 3) / 4) * 4;
+        let mut dib = vec![0u8; row_bytes * img_h as usize];
+        for y in 0..img_h {
+            let src_y = img_h - 1 - y; // bottom-up
+            let row_start = (y as usize) * row_bytes;
+            for x in 0..img_w {
+                let px = img.get_pixel(x, src_y).0;
+                let i = row_start + (x as usize) * 3;
+                dib[i] = px[2]; // B
+                dib[i + 1] = px[1]; // G
+                dib[i + 2] = px[0]; // R
+            }
+        }
+
+        let bmi = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: img_w as i32,
+                biHeight: img_h as i32,
+                biPlanes: 1,
+                biBitCount: 24,
+                biCompression: BI_RGB.0 as u32,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        unsafe {
+            StretchDIBits(
+                hdc,
+                offset_x,
+                offset_y,
+                draw_w,
+                draw_h,
+                0,
+                0,
+                img_w as i32,
+                img_h as i32,
+                Some(dib.as_ptr() as *const core::ffi::c_void),
+                &bmi,
+                DIB_RGB_COLORS,
+                SRCCOPY,
+            );
+        }
+
+        if unsafe { EndPage(hdc) } <= 0 {
+            return Err(format!("No se pudo finalizar la página: {}", Error::from_win32()));
+        }
+        if unsafe { EndDoc(hdc) } <= 0 {
+            return Err(format!("No se pudo finalizar el trabajo de impresión: {}", Error::from_win32()));
+        }
+        Ok(())
+    })();
+
+    let _ = unsafe { DeleteDC(hdc) };
+    result
 }

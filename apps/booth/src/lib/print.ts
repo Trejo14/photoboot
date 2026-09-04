@@ -78,16 +78,34 @@ export function printViaSystemDialog(imageUrl: string): void {
   setTimeout(() => frame.remove(), 60000);
 }
 
+export async function printDefaultSilent(
+  blob: Blob,
+  printer?: string
+): Promise<void> {
+  const pngBase64 = await imageToPngBase64(blob);
+  await invoke("print_default_silent", { printer: printer ?? null, pngBase64 });
+}
+
 export async function printImage(
   blob: Blob,
   imageUrl: string
-): Promise<"thermal" | "dialog"> {
+): Promise<"thermal" | "silent" | "dialog"> {
   if (isTauri) {
     const printers = await listPrinters();
     const thermal = printers.find((p) => p.thermal);
     if (thermal) {
       await printThermal(blob, thermal.name);
       return "thermal";
+    }
+    // Impresora normal (no térmica): imprime directo por GDI sin mostrar
+    // el diálogo de Windows, para que los invitados no lo vean. Si falla
+    // (driver raro, sin impresora predeterminada), cae al diálogo visible
+    // como último recurso para no perder la impresión.
+    try {
+      await printDefaultSilent(blob);
+      return "silent";
+    } catch {
+      // sigue al fallback de abajo
     }
   }
   printViaSystemDialog(imageUrl);
