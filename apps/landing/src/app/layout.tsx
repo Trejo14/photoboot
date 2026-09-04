@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Inter } from "next/font/google";
+import { Inter, Bricolage_Grotesque } from "next/font/google";
+import { env } from "@/lib/env";
 import "./globals.css";
 
 const inter = Inter({
@@ -9,7 +10,14 @@ const inter = Inter({
   display: "swap",
 });
 
+const bricolage = Bricolage_Grotesque({
+  subsets: ["latin"],
+  variable: "--font-bricolage",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
+  metadataBase: new URL(env.NEXT_PUBLIC_SITE_URL),
   title: {
     default: "Birdcam — Photobooth con IA para tus eventos",
     template: "%s · Birdcam",
@@ -33,9 +41,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="es" className="dark scroll-smooth">
-      <body className={`${inter.variable} font-sans antialiased`}>
-        <div aria-hidden className="bg-grid pointer-events-none fixed inset-0 z-0" />
+    <html lang="es" className={`dark scroll-smooth ${inter.variable} ${bricolage.variable}`}>
+      <body className="font-sans antialiased">
         <div aria-hidden className="bg-noise pointer-events-none fixed inset-0 z-0" />
         <div className="relative z-10">{children}</div>
       </body>

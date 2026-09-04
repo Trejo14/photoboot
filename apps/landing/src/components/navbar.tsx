@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { cn } from "@photobooth/ui";
 import { navLinks } from "@/lib/content";
-import { CloseIcon, LogoMark, MenuIcon } from "./icons";
+import { CloseIcon, MenuIcon } from "./icons";
+import { Logo } from "./logo";
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
@@ -21,13 +22,13 @@ export function Navbar() {
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
         scrolled || open
-          ? "border-b border-white/5 bg-[#0a0a12]/85 backdrop-blur-xl"
+          ? "border-b border-white/5 bg-[#0a0a12]"
           : "bg-transparent"
       )}
     >
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 lg:px-8">
         <a href="#" className="flex items-center gap-2.5 text-base font-bold tracking-tight text-white">
-          <LogoMark className="text-[2rem]" />
+          <Logo className="size-8" />
           BIRDCAM
         </a>
 
@@ -45,7 +46,7 @@ export function Navbar() {
 
         <div className="hidden items-center gap-3 md:flex">
           <a
-            href="#precios"
+            href="#descargar"
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             Iniciar sesión
@@ -79,6 +80,13 @@ export function Navbar() {
                 {link.label}
               </a>
             ))}
+            <a
+              href="#descargar"
+              onClick={() => setOpen(false)}
+              className="rounded-lg px-3 py-3 text-base font-medium text-foreground transition-colors hover:bg-white/5"
+            >
+              Iniciar sesión
+            </a>
           </div>
           <a href="#precios" onClick={() => setOpen(false)} className="btn-gradient mt-4 h-11 w-full text-base">
             Empezar gratis

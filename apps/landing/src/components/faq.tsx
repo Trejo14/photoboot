@@ -13,10 +13,7 @@ export function Faq() {
     <section id="faq" className="scroll-mt-24 py-24 lg:py-32">
       <div className="mx-auto max-w-3xl px-5 lg:px-8">
         <Reveal className="text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-pink">
-            FAQ
-          </p>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h2 className="font-display text-3xl font-bold leading-[1.1] text-white sm:text-4xl">
             Preguntas frecuentes
           </h2>
         </Reveal>
@@ -28,8 +25,8 @@ export function Faq() {
               <Reveal key={faq.question} delay={i * 40}>
                 <div
                   className={cn(
-                    "rounded-2xl border transition-colors",
-                    isOpen ? "border-brand-violet/40 bg-white/[0.03]" : "border-white/8 bg-white/[0.02]"
+                    "rounded-xl border transition-colors",
+                    isOpen ? "border-brand-violet/40 bg-white/[0.03]" : "border-border bg-white/[0.02]"
                   )}
                 >
                   <button

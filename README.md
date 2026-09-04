@@ -8,12 +8,16 @@ Monorepo con [Turborepo](https://turbo.build/) y [pnpm](https://pnpm.io/):
 
 ```
 apps/
-  booth/          → App de escritorio (Tauri v2 + React + Vite)
-  admin/          → Panel de administración (Next.js 15)
-  gallery-web/    → Galería pública de fotos (Next.js 15)
-  landing/        → Página de marketing (Next.js 15)
+  booth/          → App de escritorio (Tauri v2 + React + Vite). Solo se
+                    distribuye como instalador descargable; el modo navegador
+                    (Vite dev) es únicamente para pruebas internas.
+  landing/        → Next.js 15 — sitio público (marketing + suscripciones),
+                    panel de administración oculto en /admin (protegido con
+                    contraseña, solo para el operador) y la galería pública
+                    de fotos en /p/[id]. Es el único frontend con deploy.
 services/
-  api/            → API REST (NestJS + Prisma + PostgreSQL)
+  api/            → API REST (NestJS + Prisma + PostgreSQL). Licencias, pagos,
+                    eventos, cabinas y fotos (almacenamiento temporal ~32h).
   worker/         → Cola de procesamiento (BullMQ + Redis)
 packages/
   ui/             → Componentes React compartidos
@@ -71,10 +75,8 @@ pnpm dev
 
 Esto arranca:
 - API: `http://localhost:4000`
-- Admin: `http://localhost:3001`
-- Gallery: `http://localhost:3002`
-- Landing: `http://localhost:3003`
-- Booth (Vite): `http://localhost:5173`
+- Landing (sitio + admin en `/admin` + galería en `/p/[id]`): `http://localhost:3003`
+- Booth (Vite, solo para pruebas): `http://localhost:5173`
 
 ### 5. App de escritorio (opcional)
 
@@ -95,12 +97,18 @@ Después de ejecutar `npx prisma db seed`:
 
 ## Despliegue a producción
 
-### Railway (API + bases de datos)
+### Railway
 
-1. Conectar repositorio a Railway
-2. Agregar plugin PostgreSQL y Redis
-3. Configurar variables de entorno en Railway (no en el código)
-4. El deploy automático ejecuta `prisma migrate deploy` antes de iniciar
+Solo dos servicios:
+
+1. **`api`** (`Dockerfile.api`) + plugins de PostgreSQL y Redis
+2. **`landing`** (`Dockerfile.landing`) — sitio público, panel `/admin` y
+   galería `/p/[id]`
+
+En cada servicio, en Settings → Build, configura el **Dockerfile Path**
+explícitamente (`Dockerfile.api` / `Dockerfile.landing`) y configura las
+variables de entorno en el dashboard de Railway (no en el código). El deploy
+del API ejecuta `prisma migrate deploy` antes de iniciar.
 
 ### App de escritorio
 

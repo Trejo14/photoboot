@@ -14,23 +14,24 @@
   --muted: oklch(0.215 0.016 285);
   --muted-foreground: #9b9ba8;
   --muted-foreground: oklch(0.66 0.015 285);
-  --border: #ffffff1a;
-  --border: oklch(1 0 0 / 10%);
-  --input: #ffffff1f;
-  --input: oklch(1 0 0 / 12%);
-  --ring: #8b5cf6;
-  --ring: oklch(0.62 0.24 295);
+  --border: #2a2a36;
+  --border: oklch(0.28 0.015 285);
+  --input: #33333f;
+  --input: oklch(0.32 0.015 285);
+  --ring: #38bdf8;
+  --ring: oklch(0.746 0.16 232.66);
 }
 
 @theme {
-  --color-brand-violet: #8b5cf6;
-  --color-brand-violet: oklch(0.62 0.24 295);
-  --color-brand-pink: #ec4899;
-  --color-brand-pink: oklch(0.64 0.23 330);
+  --color-brand-violet: #38bdf8;
+  --color-brand-violet: oklch(0.746 0.16 232.66);
+  --color-brand-pink: #22d3ee;
+  --color-brand-pink: oklch(0.78 0.15 200);
   --color-brand-cyan: #22d3ee;
   --color-brand-cyan: oklch(0.78 0.15 200);
   --animate-marquee: marquee 42s linear infinite;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-bricolage), var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @keyframes marquee {
@@ -61,23 +62,7 @@ body {
 }
 
 @utility text-gradient {
-  background-image: linear-gradient(
-    120deg,
-    var(--color-brand-violet),
-    var(--color-brand-pink) 45%,
-    var(--color-brand-cyan)
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-@utility bg-grid {
-  background-image:
-    linear-gradient(to right, rgb(255 255 255 / 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(255 255 255 / 0.04) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 20%, transparent 75%);
+  color: var(--color-brand-violet);
 }
 
 @utility bg-noise {
@@ -86,10 +71,7 @@ body {
 }
 
 @utility glow-orb {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(90px);
-  pointer-events: none;
+  display: none;
 }
 
 @utility btn-gradient {
@@ -97,21 +79,14 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 9999px;
-  background-image: linear-gradient(
-    120deg,
-    var(--color-brand-violet),
-    var(--color-brand-pink) 50%,
-    var(--color-brand-cyan)
-  );
-  color: white;
+  border-radius: 0.5rem;
+  background: var(--color-brand-violet);
+  color: #0a0a10;
   font-weight: 600;
-  box-shadow: 0 8px 32px color-mix(in oklch, var(--color-brand-violet) 35%, transparent);
-  transition: filter 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition: background 0.2s ease, transform 0.2s ease;
   cursor: pointer;
   &:hover {
-    filter: brightness(1.12);
-    box-shadow: 0 12px 40px color-mix(in oklch, var(--color-brand-pink) 40%, transparent);
+    background: color-mix(in oklch, var(--color-brand-violet) 88%, white);
   }
   &:active {
     transform: scale(0.97);
@@ -123,7 +98,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 9999px;
+  border-radius: 0.5rem;
   border: 1px solid var(--border);
   background: color-mix(in oklch, white 3%, transparent);
   color: var(--foreground);
@@ -150,14 +125,9 @@ body {
 
 @utility gradient-border {
   position: relative;
-  border-radius: 1.5rem;
+  border-radius: 0.75rem;
   padding: 1px;
-  background: linear-gradient(
-    150deg,
-    var(--color-brand-violet),
-    var(--color-brand-pink) 45%,
-    var(--color-brand-cyan)
-  );
+  background: var(--color-brand-violet);
 }
 
 .reveal {

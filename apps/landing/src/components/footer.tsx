@@ -1,18 +1,11 @@
 import { footerLinks } from "@/lib/content";
 import { NewsletterForm } from "./newsletter-form";
-import {
-  InstagramIcon,
-  LogoMark,
-  TikTokIcon,
-  XSocialIcon,
-  YouTubeIcon,
-} from "./icons";
+import { GlobeIcon, InstagramIcon } from "./icons";
+import { Logo } from "./logo";
 
 const socials = [
-  { label: "Instagram", href: "#", Icon: InstagramIcon },
-  { label: "TikTok", href: "#", Icon: TikTokIcon },
-  { label: "YouTube", href: "#", Icon: YouTubeIcon },
-  { label: "X", href: "#", Icon: XSocialIcon },
+  { label: "Instagram", href: "https://www.instagram.com/birdstack_mx/", Icon: InstagramIcon },
+  { label: "Sitio web", href: "https://birdstack.net/", Icon: GlobeIcon },
 ];
 
 export function Footer() {
@@ -22,7 +15,7 @@ export function Footer() {
         <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
             <a href="#" className="flex items-center gap-2.5 text-base font-bold tracking-tight text-white">
-              <LogoMark className="text-[2rem]" />
+              <Logo className="size-8" />
               BIRDCAM
             </a>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
@@ -34,8 +27,10 @@ export function Footer() {
                 <a
                   key={label}
                   href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   aria-label={label}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-muted-foreground transition-colors hover:border-brand-pink/40 hover:text-brand-pink"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-brand-pink/40 hover:text-brand-pink"
                 >
                   <Icon className="size-4.5" />
                 </a>

@@ -5,7 +5,7 @@ export function IpadFrame({ children, className }: { children: ReactNode; classN
   return (
     <div
       className={cn(
-        "relative rounded-[2.6rem] border border-white/10 bg-[#15151d] p-3 shadow-[0_40px_120px_-30px_rgba(139,92,246,0.35)]",
+        "relative rounded-[2.6rem] border border-border bg-[#15151d] p-3 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]",
         className
       )}
     >
@@ -25,7 +25,7 @@ export function PhotoScene({ className }: { className?: string }) {
     >
       <defs>
         <linearGradient id="scene-bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#7c3aed" />
+          <stop offset="0" stopColor="#38bdf8" />
           <stop offset="0.5" stopColor="#db2777" />
           <stop offset="1" stopColor="#0e7490" />
         </linearGradient>
@@ -115,18 +115,18 @@ export function BoothPreviewMockup() {
 export function BoothSetupMockup() {
   return (
     <div className="flex aspect-[3/4] flex-col items-center justify-center rounded-[1.8rem] bg-[#0f0f18] p-6">
-      <div className="w-full max-w-[16rem] rounded-2xl border border-white/10 bg-[#13131d] p-6 shadow-2xl">
+      <div className="w-full max-w-[16rem] rounded-2xl border border-border bg-[#13131d] p-6 shadow-2xl">
         <p className="text-center text-lg font-bold text-white">Configurar cabina</p>
         <div className="mt-5 space-y-3">
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">ID del evento</p>
-            <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/60">
+            <div className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-white/60">
               demo-event
             </div>
           </div>
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Nombre de la cabina</p>
-            <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/60">
+            <div className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-white/60">
               Cabina 1
             </div>
           </div>
@@ -171,7 +171,7 @@ export function QrMock({ className }: { className?: string }) {
 
 export function GalleryQrCard() {
   return (
-    <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white p-4 shadow-2xl">
+    <div className="flex items-center gap-4 rounded-2xl border border-border bg-white p-4 shadow-2xl">
       <QrMock className="w-24 shrink-0" />
       <div className="pr-2">
         <p className="text-sm font-bold text-neutral-900">Tu foto está lista</p>

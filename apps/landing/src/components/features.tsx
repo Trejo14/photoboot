@@ -25,10 +25,7 @@ export function Features() {
     <section id="producto" className="scroll-mt-24 py-24 lg:py-32">
       <div className="mx-auto max-w-6xl px-5 lg:px-8">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-pink">
-            Producto
-          </p>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h2 className="font-display text-3xl font-bold leading-[1.1] text-white sm:text-4xl">
             Todo lo que tu cabina necesita,{" "}
             <span className="text-gradient">en un solo software</span>
           </h2>
@@ -43,9 +40,9 @@ export function Features() {
             const Icon = iconMap[feature.icon as keyof typeof iconMap];
             return (
               <Reveal key={feature.title} delay={i * 60}>
-                <div className="card-lift h-full rounded-2xl border border-white/8 bg-card p-7">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand-violet/25 via-brand-pink/20 to-brand-cyan/25 text-brand-pink">
-                    <Icon className="size-6" />
+                <div className="card-lift h-full rounded-xl border border-border bg-card p-7">
+                  <div className="flex h-12 w-12 items-center justify-center text-brand-violet">
+                    <Icon className="size-7" />
                   </div>
                   <h3 className="mt-5 text-lg font-semibold text-white">{feature.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -58,14 +55,10 @@ export function Features() {
         </div>
 
         <Reveal delay={120} className="mt-20">
-          <div className="relative overflow-hidden rounded-[2rem] border border-white/8 bg-[#0d0d16]">
-            <div className="glow-orb right-[-8%] top-[-20%] h-64 w-64 bg-brand-pink/15" />
+          <div className="relative overflow-hidden rounded-xl border border-border bg-[#0d0d16]">
             <div className="grid items-center gap-12 px-6 py-14 sm:px-12 lg:grid-cols-2 lg:px-16">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-pink">
-                  Control total
-                </p>
-                <h3 className="mt-4 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                <h3 className="font-display text-2xl font-bold leading-[1.1] text-white sm:text-3xl">
                   Cada foto, perfecta{" "}
                   <span className="text-gradient">antes de publicarse</span>
                 </h3>

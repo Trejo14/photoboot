@@ -6,10 +6,7 @@ export function Testimonials() {
     <section id="casos" className="scroll-mt-24 py-24 lg:py-32">
       <div className="mx-auto max-w-6xl px-5 lg:px-8">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-pink">
-            Casos de uso
-          </p>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h2 className="font-display text-3xl font-bold leading-[1.1] text-white sm:text-4xl">
             Creado para los momentos que{" "}
             <span className="text-gradient">nadie olvida</span>
           </h2>
@@ -18,15 +15,15 @@ export function Testimonials() {
         <div className="mt-16 grid gap-5 md:grid-cols-3">
           {testimonials.map((t, i) => (
             <Reveal key={t.name} delay={i * 80}>
-              <figure className="card-lift flex h-full flex-col rounded-2xl border border-white/8 bg-card p-7">
-                <span className="w-fit rounded-full bg-brand-violet/15 px-3 py-1 text-xs font-semibold text-brand-pink">
+              <figure className="card-lift flex h-full flex-col rounded-xl border border-border bg-card p-7">
+                <span className="w-fit rounded-md bg-brand-violet/15 px-3 py-1 text-xs font-semibold text-brand-violet">
                   {t.type}
                 </span>
                 <blockquote className="mt-5 flex-1 text-sm leading-relaxed text-foreground/90">
                   “{t.quote}”
                 </blockquote>
                 <figcaption className="mt-6 flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-brand-violet to-brand-cyan text-sm font-bold text-white">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-violet text-sm font-bold text-[#0a0a10]">
                     {t.name.charAt(0)}
                   </span>
                   <div>

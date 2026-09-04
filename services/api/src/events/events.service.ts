@@ -16,6 +16,13 @@ export class EventsService {
     });
   }
 
+  async listAll() {
+    return this.prisma.event.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { booths: true, photos: true } } },
+    });
+  }
+
   async create(dto: CreateEventDto) {
     return this.prisma.event.create({
       data: {

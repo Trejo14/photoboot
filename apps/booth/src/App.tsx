@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMachine } from "@xstate/react";
 import { boothMachine, getScreenForState } from "./machines/booth-machine";
 import { env } from "@/lib/env";
-import { getDevice, setDevice } from "@/lib/device";
+import { getDevice, setDevice, sendHeartbeat } from "@/lib/device";
 import type { DeviceInfo } from "@/lib/db";
 import { enqueuePhoto, flushPending, listPending } from "@/lib/queue";
 import {
@@ -137,6 +137,18 @@ export function App() {
       clearInterval(iv);
     };
   }, [state.context.device, flushFor, refreshPending, send]);
+
+  // Periodic heartbeat so the admin panel's "last seen" stays fresh
+  useEffect(() => {
+    const device = state.context.device;
+    if (!device) return;
+    const beat = () => {
+      if (navigator.onLine) void sendHeartbeat(device.deviceToken).catch(() => undefined);
+    };
+    beat();
+    const iv = setInterval(beat, 60_000);
+    return () => clearInterval(iv);
+  }, [state.context.device]);
 
   // Tauri exit confirm listener
   useEffect(() => {

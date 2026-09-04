@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const envSchema = z.object({
   API_URL: z.string().url().default("http://localhost:4000"),
-  GALLERY_URL: z.string().url().default("http://localhost:3002"),
+  GALLERY_URL: z.string().url().default("http://localhost:3003"),
   BIRDCAM_ENV: z.enum(["development", "production"]).default("production"),
 });
 

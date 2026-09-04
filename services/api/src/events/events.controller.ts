@@ -3,6 +3,7 @@ import { EventsService } from "./events.service";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { JwtAuthGuard } from "../auth/jwt.guard";
 import type { AuthenticatedRequest } from "../auth/jwt.guard";
+import { AdminKeyGuard } from "../auth/admin-key.guard";
 
 @Controller("events")
 export class EventsController {
@@ -14,6 +15,13 @@ export class EventsController {
     return this.events.listForUser(req.user!.organizationId);
   }
 
+  @UseGuards(AdminKeyGuard)
+  @Get("admin")
+  listAll() {
+    return this.events.listAll();
+  }
+
+  @UseGuards(AdminKeyGuard)
   @Post()
   create(@Body() dto: CreateEventDto) {
     return this.events.create(dto);

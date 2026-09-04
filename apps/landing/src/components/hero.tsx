@@ -1,6 +1,6 @@
 import { Reveal } from "./reveal";
 import { BoothCaptureMockup, GalleryQrCard, IpadFrame } from "./mockups";
-import { ArrowRightIcon, CheckIcon, PlayIcon, SparklesIcon } from "./icons";
+import { CheckIcon, PlayIcon } from "./icons";
 
 export function Hero() {
   return (
@@ -11,15 +11,8 @@ export function Hero() {
 
       <div className="mx-auto grid max-w-6xl items-center gap-16 px-5 lg:grid-cols-2 lg:gap-12 lg:px-8">
         <div className="text-center lg:text-left">
-          <Reveal>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-muted-foreground">
-              <SparklesIcon className="size-3.5 text-brand-pink" />
-              Software de photobooth con IA
-            </span>
-          </Reveal>
-
           <Reveal delay={80}>
-            <h1 className="mt-6 text-4xl font-bold leading-[1.06] tracking-tight text-white sm:text-5xl lg:text-6xl">
+            <h1 className="font-display text-4xl font-bold leading-[1.1] text-white sm:text-5xl lg:text-6xl">
               Cabinas de fotos con IA,{" "}
               <span className="text-gradient">listas en 2 minutos</span>
             </h1>
@@ -37,7 +30,6 @@ export function Hero() {
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
               <a href="#precios" className="btn-gradient h-12 w-full px-8 text-base sm:w-auto">
                 Empezar gratis
-                <ArrowRightIcon className="size-4" />
               </a>
               <a href="#producto" className="btn-ghost h-12 w-full px-8 text-base sm:w-auto">
                 <PlayIcon className="size-4" />
