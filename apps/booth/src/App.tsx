@@ -26,6 +26,7 @@ import { AdminHotDot } from "@/components/admin-hot-dot";
 import { LicenseScreen } from "@/components/license-screen";
 import { StatusBar } from "@/components/status-bar";
 import { ExitConfirmModal } from "@/components/exit-confirm-modal";
+import { PowerIcon } from "@/components/icons";
 import { composeFrame } from "@/lib/compose";
 import { printImage } from "@/lib/print";
 
@@ -320,9 +321,23 @@ export function App() {
   }
 
   // ── Render ──
+  const showCloseButton = ["wizard", "login", "plan-selector", "event-menu"].includes(
+    screen
+  );
+
   return (
     <>
       {renderScreen()}
+      {showCloseButton && (
+        <button
+          onClick={() => setExitConfirmOpen(true)}
+          aria-label="Cerrar Birdcam"
+          title="Cerrar Birdcam"
+          className="fixed right-4 top-4 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/50 text-white/70 backdrop-blur transition hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400"
+        >
+          <PowerIcon className="h-5 w-5" />
+        </button>
+      )}
       <ExitConfirmModal
         open={exitConfirmOpen}
         onClose={() => setExitConfirmOpen(false)}

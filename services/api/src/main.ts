@@ -14,7 +14,21 @@ async function bootstrap() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
-  app.enableCors({ origin: corsOrigin });
+  // La app de escritorio (Tauri) sirve su UI desde un origen interno tipo
+  // `tauri://localhost` o `https://tauri.localhost` según plataforma/versión;
+  // se acepta cualquier variante en vez de fijar un solo string exacto.
+  const isTauriOrigin = (origin: string) =>
+    origin.startsWith("tauri://") || /^https?:\/\/tauri\.localhost$/.test(origin);
+
+  app.enableCors({
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      if (!origin || corsOrigin.includes(origin) || isTauriOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`Origen no permitido: ${origin}`), false);
+    },
+  });
 
   app.use(
     "/payments/webhook",
