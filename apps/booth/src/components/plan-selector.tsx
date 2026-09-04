@@ -35,8 +35,8 @@ const plans: Plan[] = [
     features: [
       { text: "2 eventos por mes", included: true },
       { text: "Entrega por QR", included: true },
-      { text: "Plantillas básicas", included: true },
       { text: "Watermark de Birdcam", included: true },
+      { text: "Marcos y plantillas", included: false },
       { text: "IA generativa", included: false },
       { text: "Multi-booth", included: false },
       { text: "Sin marca de agua", included: false },
@@ -119,7 +119,7 @@ export function PlanSelector({ onPlanSelected, onBack }: Props) {
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Error al crear sesión de pago"
+        err instanceof Error ? err.message : "Error al crear sesión de pago",
       );
     } finally {
       setLoading(false);
@@ -229,7 +229,11 @@ export function PlanSelector({ onPlanSelected, onBack }: Props) {
         )}
 
         <div className="flex justify-center">
-          <Button variant="ghost" onClick={onBack} className="text-muted-foreground">
+          <Button
+            variant="ghost"
+            onClick={onBack}
+            className="text-muted-foreground"
+          >
             Volver
           </Button>
         </div>

@@ -6,6 +6,8 @@ import { getDevice, setDevice, sendHeartbeat } from "@/lib/device";
 import type { DeviceInfo } from "@/lib/db";
 import { enqueuePhoto, flushPending, listPending } from "@/lib/queue";
 import { getLicense, isLicenseExpired, validateLicense } from "@/lib/license";
+import { getEffectivePlan } from "@/lib/plan";
+import { applyTrialWatermark } from "@/lib/watermark";
 import { logout } from "@/lib/api";
 import { markSetupComplete } from "@/lib/setup-state";
 import { enterKioskMode, exitKioskMode, listen, invoke } from "@/lib/tauri";
@@ -86,6 +88,7 @@ export function App() {
   const bootRunningRef = useRef(false);
 
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [licenseOverlayOpen, setLicenseOverlayOpen] = useState(false);
 
   const refreshPending = useCallback(async () => {
     const pending = await listPending();
@@ -289,6 +292,17 @@ export function App() {
       composedImageUrl = URL.createObjectURL(composedBlob);
     }
 
+    if (getEffectivePlan(state.context.license) === "free") {
+      try {
+        const watermarked = await applyTrialWatermark(composedBlob);
+        URL.revokeObjectURL(composedImageUrl);
+        composedBlob = watermarked;
+        composedImageUrl = URL.createObjectURL(watermarked);
+      } catch (err) {
+        console.error("No se pudo aplicar la marca de agua de prueba:", err);
+      }
+    }
+
     await enqueuePhoto(
       composedBlob,
       format?.id === "single" ? "single" : "strip",
@@ -321,9 +335,12 @@ export function App() {
   }
 
   // ── Render ──
-  const showCloseButton = ["wizard", "login", "plan-selector", "event-menu"].includes(
-    screen
-  );
+  const showCloseButton = [
+    "wizard",
+    "login",
+    "plan-selector",
+    "event-menu",
+  ].includes(screen);
 
   return (
     <>
@@ -342,6 +359,18 @@ export function App() {
         open={exitConfirmOpen}
         onClose={() => setExitConfirmOpen(false)}
       />
+      {licenseOverlayOpen && state.context.device && (
+        <div className="fixed inset-0 z-50">
+          <LicenseScreen
+            deviceToken={state.context.device.deviceToken}
+            onActivated={(license) => {
+              send({ type: "LICENSE_ACTIVATED", license });
+              setLicenseOverlayOpen(false);
+            }}
+            onCancel={() => setLicenseOverlayOpen(false)}
+          />
+        </div>
+      )}
     </>
   );
 
@@ -396,8 +425,10 @@ export function App() {
       return (
         <FrameSelectionScreen
           format={state.context.format}
+          license={state.context.license}
           onSelect={(frame) => send({ type: "FRAME_SELECTED", frame })}
           onSkip={() => send({ type: "SKIP_FRAME" })}
+          onOpenLicense={() => setLicenseOverlayOpen(true)}
         />
       );
     }
@@ -432,9 +463,9 @@ export function App() {
                 onClick={() => send({ type: "SHOW_LICENSE_SCREEN" })}
                 className="absolute right-4 top-4 z-10 rounded-md bg-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/20"
               >
-                {state.context.license
-                  ? `Licencia ${state.context.license.plan}`
-                  : "Activar licencia"}
+                {getEffectivePlan(state.context.license) === "free"
+                  ? "Modo de prueba · Activar licencia"
+                  : `Licencia ${state.context.license?.plan}`}
               </button>
               <StatusBar
                 online={state.context.online}

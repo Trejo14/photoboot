@@ -20,7 +20,7 @@ export const plans: Plan[] = [
   {
     id: "free",
     name: "FREE",
-    tagline: "Para probarla en tu primer evento.",
+    tagline: "Modo de prueba: conoce la cabina antes de comprar.",
     monthlyPrice: 0,
     yearlyPrice: 0,
     highlighted: false,
@@ -28,8 +28,8 @@ export const plans: Plan[] = [
     features: [
       { label: "2 eventos al mes", included: true },
       { label: "Entrega de fotos por QR", included: true },
-      { label: "Plantillas básicas", included: true },
       { label: "Marca de agua Birdcam", included: true },
+      { label: "Marcos y plantillas", included: false },
       { label: "IA generativa", included: false },
       { label: "Multi-cabina", included: false },
       { label: "Sin marca de agua", included: false },

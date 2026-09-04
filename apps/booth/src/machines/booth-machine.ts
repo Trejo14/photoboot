@@ -109,6 +109,16 @@ export const boothMachine = setup({
     LICENSE_BLOCKED: {
       actions: assign({ licenseBlocked: true }),
     },
+    // Fallback for states other than "license" (e.g. activating from an
+    // in-context upsell on frame-selection): update the license without
+    // forcing a screen change. The "license" state below defines its own
+    // LICENSE_ACTIVATED transition which takes precedence while active.
+    LICENSE_ACTIVATED: {
+      actions: assign({
+        license: ({ event }) => event.license,
+        licenseBlocked: false,
+      }),
+    },
     GO_ONLINE: {
       actions: assign({ online: true }),
     },
@@ -330,8 +340,13 @@ export const boothMachine = setup({
   },
 });
 
-export function getScreenForState(state: { value: string | Record<string, string> }): BoothScreen {
-  const val = typeof state.value === "string" ? state.value : Object.keys(state.value)[0] ?? "splash";
+export function getScreenForState(state: {
+  value: string | Record<string, string>;
+}): BoothScreen {
+  const val =
+    typeof state.value === "string"
+      ? state.value
+      : (Object.keys(state.value)[0] ?? "splash");
   const map: Record<string, BoothScreen> = {
     splash: "splash",
     wizard: "wizard",
