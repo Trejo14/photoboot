@@ -116,19 +116,34 @@ export function App() {
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [licenseOverlayOpen, setLicenseOverlayOpen] = useState(false);
 
+  const lastFrame = state.context.frames[state.context.frames.length - 1];
+  const [previewUrl, setPreviewUrl] = useState("");
+  useEffect(() => {
+    if (!lastFrame) {
+      setPreviewUrl("");
+      return;
+    }
+    const url = URL.createObjectURL(lastFrame);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [lastFrame]);
+
   const refreshPending = useCallback(async () => {
     const pending = await listPending();
     send({ type: "SET_PENDING", count: pending.length });
   }, [send]);
 
+  const flushingRef = useRef(false);
   const flushFor = useCallback(
     async (d: DeviceInfo) => {
-      if (!navigator.onLine)
+      if (!navigator.onLine || flushingRef.current)
         return { synced: 0, failed: 0, photoIds: [] as string[] };
+      flushingRef.current = true;
       send({ type: "SET_SYNCING", syncing: true });
       try {
         return await flushPending(d.deviceToken);
       } finally {
+        flushingRef.current = false;
         await refreshPending();
         send({ type: "SET_SYNCING", syncing: false });
       }
@@ -157,11 +172,19 @@ export function App() {
     const onOffline = () => send({ type: "GO_OFFLINE" });
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
-    const iv = setInterval(() => void refreshPending(), 3000);
+    const refreshIv = setInterval(() => void refreshPending(), 3000);
+    // Retries "failed" uploads even while nominally online, since a
+    // transient server error (not a connectivity drop) never fires the
+    // browser's "online" event on its own.
+    const retryIv = setInterval(() => {
+      const device = state.context.device;
+      if (device && navigator.onLine) void flushFor(device);
+    }, 20000);
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
-      clearInterval(iv);
+      clearInterval(refreshIv);
+      clearInterval(retryIv);
     };
   }, [state.context.device, flushFor, refreshPending, send]);
 
@@ -520,8 +543,6 @@ export function App() {
     }
 
     if (screen === "preview") {
-      const lastFrame = state.context.frames[state.context.frames.length - 1];
-      const previewUrl = lastFrame ? URL.createObjectURL(lastFrame) : "";
       return (
         <div className="relative min-h-dvh bg-black">
           {env.IS_DEV && <div className="dev-badge">MODO DESARROLLO</div>}

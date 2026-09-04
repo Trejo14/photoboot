@@ -19,20 +19,20 @@ model Organization {
 }
 
 model User {
-  id                    String    @id @default(cuid())
-  email                 String    @unique
-  name                  String?
-  password              String?
-  phone                 String?
-  plan                  String    @default("free") // free | pro | lifetime
-  planStatus            String? // active | canceled | past_due | trialing
-  planExpiresAt         DateTime?
-  stripeCustomerId      String?   @unique
-  stripeSubscriptionId  String?   @unique
-  organizationId        String?
-  createdAt             DateTime  @default(now())
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  name                 String?
+  password             String?
+  phone                String?
+  plan                 String    @default("free") // free | pro | lifetime
+  planStatus           String? // active | canceled | past_due | trialing
+  planExpiresAt        DateTime?
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  organizationId       String?
+  createdAt            DateTime  @default(now())
 
-  organization      Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  organization      Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   verificationCodes VerificationCode[]
 }
 
@@ -52,14 +52,14 @@ model VerificationCode {
 }
 
 model Event {
-  id             String       @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   name           String
-  themeConfig    Json         @default("{}")
+  themeConfig    Json      @default("{}")
   startDate      DateTime
   endDate        DateTime?
-  isOffline      Boolean      @default(false)
-  createdAt      DateTime     @default(now())
+  isOffline      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   booths       Booth[]
@@ -84,16 +84,16 @@ model Booth {
 }
 
 model Photo {
-  id           String    @id @default(cuid())
+  id           String   @id @default(cuid())
   eventId      String
   boothId      String
-  type         String    @default("single")
+  type         String   @default("single")
   originalUrl  String
   processedUrl String?
   aiStyle      String?
-  status       String    @default("pending")
-  deliveredVia String[]  @default([])
-  createdAt    DateTime  @default(now())
+  status       String   @default("pending")
+  deliveredVia String[] @default([])
+  createdAt    DateTime @default(now())
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   booth Booth @relation(fields: [boothId], references: [id], onDelete: Cascade)
@@ -133,11 +133,20 @@ model License {
   activatedAt          DateTime?
   lastValidatedAt      DateTime?
   expiresAt            DateTime?
-  createdAt       DateTime  @default(now())
+  createdAt            DateTime  @default(now())
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
+}
+
+// Records Stripe webhook event IDs we've already applied, so a Stripe
+// retry of the same event (e.g. after a slow response) is a no-op instead
+// of re-issuing a license or re-applying a plan change.
+model StripeEvent {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
 }
 
 model ManualOrder {

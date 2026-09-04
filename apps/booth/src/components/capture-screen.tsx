@@ -24,34 +24,50 @@ export function CaptureScreen({ format, onCapture, onAllCaptured }: Props) {
   const [showFlash, setShowFlash] = useState(false);
   const totalPhotos = format?.photoCount ?? 1;
   const loopRunningRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  const connectCamera = useCallback(async () => {
+    if (!videoRef.current) return;
+    cameraRef.current?.stop();
+    cameraRef.current = null;
+    try {
+      const settings = await getSettings();
+      const handle = await startCamera(
+        videoRef.current,
+        settings.cameraDeviceId ?? undefined,
+        () => {
+          cameraRef.current = null;
+          if (mountedRef.current) {
+            setError(
+              "Se desconectó la cámara. Revisa la conexión y reintenta.",
+            );
+          }
+        },
+      );
+      if (!mountedRef.current) {
+        handle.stop();
+        return;
+      }
+      cameraRef.current = handle;
+      setError(null);
+    } catch {
+      if (mountedRef.current) {
+        setError(
+          "No se pudo acceder a la cámara. Revisa la conexión y reintenta.",
+        );
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      if (!videoRef.current) return;
-      try {
-        const settings = await getSettings();
-        const handle = await startCamera(
-          videoRef.current,
-          settings.cameraDeviceId ?? undefined
-        );
-        if (cancelled) {
-          handle.stop();
-          return;
-        }
-        cameraRef.current = handle;
-      } catch {
-        if (!cancelled) {
-          setError("No se pudo acceder a la cámara");
-        }
-      }
-    })();
+    mountedRef.current = true;
+    void connectCamera();
     return () => {
-      cancelled = true;
+      mountedRef.current = false;
       cameraRef.current?.stop();
       cameraRef.current = null;
     };
-  }, []);
+  }, [connectCamera]);
 
   const runCaptureLoop = useCallback(async () => {
     if (loopRunningRef.current || !videoRef.current) return;
@@ -101,14 +117,19 @@ export function CaptureScreen({ format, onCapture, onAllCaptured }: Props) {
         className="h-full w-full -scale-x-100 object-cover"
       />
 
-      {showFlash && (
-        <div className="absolute inset-0 bg-white animate-flash" />
-      )}
+      {showFlash && <div className="absolute inset-0 bg-white animate-flash" />}
 
       {error ? (
-        <p className="absolute top-4 rounded-md bg-red-500/90 px-4 py-2 text-sm text-white">
-          {error}
-        </p>
+        <div className="absolute top-4 flex flex-col items-center gap-2 rounded-md bg-red-500/90 px-4 py-2 text-center text-sm text-white">
+          <p>{error}</p>
+          <Button
+            onClick={() => void connectCamera()}
+            size="sm"
+            className="bg-white text-red-600 hover:bg-white/90"
+          >
+            Reintentar cámara
+          </Button>
+        </div>
       ) : null}
 
       {totalPhotos > 1 && !countdown && !capturing && (

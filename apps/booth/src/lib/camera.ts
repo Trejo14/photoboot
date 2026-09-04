@@ -5,7 +5,8 @@ export interface CameraHandle {
 
 export async function startCamera(
   videoEl: HTMLVideoElement,
-  deviceId?: string
+  deviceId?: string,
+  onDisconnect?: () => void,
 ): Promise<CameraHandle> {
   const stream = await navigator.mediaDevices.getUserMedia({
     video: deviceId
@@ -25,10 +26,17 @@ export async function startCamera(
   videoEl.srcObject = stream;
   await videoEl.play();
 
+  if (onDisconnect) {
+    for (const track of stream.getTracks()) {
+      track.addEventListener("ended", onDisconnect);
+    }
+  }
+
   return {
     stream,
     stop: () => {
       for (const track of stream.getTracks()) {
+        if (onDisconnect) track.removeEventListener("ended", onDisconnect);
         track.stop();
       }
     },
@@ -37,7 +45,7 @@ export async function startCamera(
 
 export async function captureFrame(
   videoEl: HTMLVideoElement,
-  quality = 0.92
+  quality = 0.92,
 ): Promise<Blob> {
   const width = videoEl.videoWidth || 1280;
   const height = videoEl.videoHeight || 720;
@@ -59,7 +67,7 @@ export async function captureFrame(
     canvas.toBlob(
       (b) => (b ? resolve(b) : reject(new Error("toBlob falló"))),
       "image/jpeg",
-      quality
+      quality,
     );
   });
 

@@ -4,7 +4,7 @@ import { uploadPhoto } from "./upload";
 export async function enqueuePhoto(
   blob: Blob,
   type: QueueEntry["type"],
-  aiStyle: string | null
+  aiStyle: string | null,
 ): Promise<QueueEntry> {
   const db = await getDB();
   const entry: QueueEntry = {
@@ -19,13 +19,10 @@ export async function enqueuePhoto(
   return entry;
 }
 
+// Everything still in the store is unsynced (synced entries are deleted),
+// so this also picks up "failed" entries and any "syncing" entry left
+// stuck by a crash mid-upload, letting the next flush retry them.
 export async function listPending(): Promise<QueueEntry[]> {
-  const db = await getDB();
-  const index = db.transaction("queue").store.index("by-status");
-  return index.getAll("pending");
-}
-
-export async function listAll(): Promise<QueueEntry[]> {
   const db = await getDB();
   return db.getAll("queue");
 }
@@ -44,7 +41,7 @@ export async function markFailed(id: string, error: string): Promise<void> {
 }
 
 export async function flushPending(
-  token: string
+  token: string,
 ): Promise<{ synced: number; failed: number; photoIds: string[] }> {
   const db = await getDB();
   const pending = await listPending();

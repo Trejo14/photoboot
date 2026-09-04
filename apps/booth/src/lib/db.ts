@@ -22,7 +22,6 @@ export interface PhotoboothDB extends DBSchema {
   queue: {
     key: string;
     value: QueueEntry;
-    indexes: { "by-status": string };
   };
   device: {
     key: "device";
@@ -36,8 +35,7 @@ export function getDB() {
   if (!dbPromise) {
     dbPromise = openDB<PhotoboothDB>("photobooth", 1, {
       upgrade(db) {
-        const queue = db.createObjectStore("queue", { keyPath: "id" });
-        queue.createIndex("by-status", "status");
+        db.createObjectStore("queue", { keyPath: "id" });
         db.createObjectStore("device", { keyPath: "key" });
       },
     });

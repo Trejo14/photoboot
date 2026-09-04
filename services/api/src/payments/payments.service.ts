@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { Prisma } from "@prisma/client";
 import { Injectable, BadRequestException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
@@ -196,6 +197,23 @@ export class PaymentsService {
       event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
     } catch {
       throw new BadRequestException("Webhook signature inválida");
+    }
+
+    // Stripe retries webhooks that don't ack fast enough; the unique
+    // constraint on `id` makes this the atomic "have we seen this event"
+    // check even under concurrent/duplicate deliveries.
+    try {
+      await this.prisma.stripeEvent.create({
+        data: { id: event.id, type: event.type },
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        return { processed: true };
+      }
+      throw err;
     }
 
     switch (event.type) {
