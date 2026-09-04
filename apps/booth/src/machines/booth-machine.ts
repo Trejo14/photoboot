@@ -164,6 +164,10 @@ export const boothMachine = setup({
           { target: "format-selection", guard: "hasDevice" },
           { target: "event-menu" },
         ],
+        SELECT_PLAN: [
+          { target: "format-selection", guard: "hasDevice" },
+          { target: "event-menu" },
+        ],
       },
     },
 
