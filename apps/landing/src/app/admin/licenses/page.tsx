@@ -3,7 +3,14 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { adminFetch } from "@/lib/admin-api";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@photobooth/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@photobooth/ui";
 import type { LicenseSummary, ManualOrderSummary } from "@photobooth/types";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +33,9 @@ async function fulfillManualOrder(formData: FormData) {
   const id = formData.get("id");
   if (typeof id === "string" && id) {
     try {
-      await adminFetch(`/licenses/manual-orders/${id}/fulfill`, { method: "POST" });
+      await adminFetch(`/licenses/manual-orders/${id}/fulfill`, {
+        method: "POST",
+      });
     } catch {
       // la página vuelve a cargar y muestra el error real del listado
     }
@@ -55,7 +64,9 @@ export default async function LicensesPage() {
 
   let manualOrders: ManualOrderSummary[] = [];
   try {
-    manualOrders = await adminFetch<ManualOrderSummary[]>("/licenses/manual-orders");
+    manualOrders = await adminFetch<ManualOrderSummary[]>(
+      "/licenses/manual-orders",
+    );
   } catch {
     // si falla, simplemente no mostramos la sección de pedidos
   }
@@ -66,7 +77,9 @@ export default async function LicensesPage() {
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Licencias</h1>
-          <p className="text-sm text-muted-foreground">Gestiona las licencias de las cabinas</p>
+          <p className="text-sm text-muted-foreground">
+            Gestiona las licencias de las cabinas
+          </p>
         </div>
         <Link
           href="/admin"
@@ -90,7 +103,9 @@ export default async function LicensesPage() {
         </CardHeader>
         <CardContent>
           {pendingOrders.length === 0 ? (
-            <p className="text-center text-muted-foreground">No hay pedidos pendientes.</p>
+            <p className="text-center text-muted-foreground">
+              No hay pedidos pendientes.
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -115,8 +130,12 @@ export default async function LicensesPage() {
                         {order.plan}
                         {order.interval ? ` (${order.interval})` : ""}
                       </td>
-                      <td className="py-2 pr-4">${order.amount.toLocaleString("es-MX")} MXN</td>
-                      <td className="py-2 pr-4">{formatDate(order.createdAt)}</td>
+                      <td className="py-2 pr-4">
+                        ${order.amount.toLocaleString("es-MX")} MXN
+                      </td>
+                      <td className="py-2 pr-4">
+                        {formatDate(order.createdAt)}
+                      </td>
                       <td className="py-2 text-right">
                         <form action={fulfillManualOrder}>
                           <input type="hidden" name="id" value={order.id} />
@@ -140,7 +159,9 @@ export default async function LicensesPage() {
         </CardHeader>
         <CardContent>
           {licenses.length === 0 && !error ? (
-            <p className="text-center text-muted-foreground">No hay licencias todavía.</p>
+            <p className="text-center text-muted-foreground">
+              No hay licencias todavía.
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -150,6 +171,7 @@ export default async function LicensesPage() {
                     <th className="py-2 pr-4 font-medium">Plan</th>
                     <th className="py-2 pr-4 font-medium">Estado</th>
                     <th className="py-2 pr-4 font-medium">Organización</th>
+                    <th className="py-2 pr-4 font-medium">Cabinas</th>
                     <th className="py-2 pr-4 font-medium">Activada</th>
                     <th className="py-2 pr-4 font-medium">Último check-in</th>
                     <th className="py-2 pr-4 font-medium">Caduca</th>
@@ -162,19 +184,36 @@ export default async function LicensesPage() {
                       <td className="py-2 pr-4 font-mono">{lic.licenseKey}</td>
                       <td className="py-2 pr-4 capitalize">{lic.plan}</td>
                       <td className="py-2 pr-4">
-                        <Badge variant={lic.status === "revoked" ? "destructive" : "default"}>
+                        <Badge
+                          variant={
+                            lic.status === "revoked" ? "destructive" : "default"
+                          }
+                        >
                           {lic.status}
                         </Badge>
                       </td>
-                      <td className="py-2 pr-4">{lic.organization?.name ?? "—"}</td>
-                      <td className="py-2 pr-4">{formatDate(lic.activatedAt)}</td>
-                      <td className="py-2 pr-4">{formatDate(lic.lastValidatedAt)}</td>
+                      <td className="py-2 pr-4">
+                        {lic.organization?.name ?? "—"}
+                      </td>
+                      <td className="py-2 pr-4">
+                        {lic.activeDevices} / {lic.maxBooths}
+                      </td>
+                      <td className="py-2 pr-4">
+                        {formatDate(lic.activatedAt)}
+                      </td>
+                      <td className="py-2 pr-4">
+                        {formatDate(lic.lastValidatedAt)}
+                      </td>
                       <td className="py-2 pr-4">{formatDate(lic.expiresAt)}</td>
                       <td className="py-2 text-right">
                         {lic.status === "active" ? (
                           <form action={revokeLicense}>
                             <input type="hidden" name="id" value={lic.id} />
-                            <Button type="submit" variant="destructive" size="sm">
+                            <Button
+                              type="submit"
+                              variant="destructive"
+                              size="sm"
+                            >
                               Revocar
                             </Button>
                           </form>

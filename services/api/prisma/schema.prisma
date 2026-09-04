@@ -125,19 +125,31 @@ model License {
   plan                 String    @default("free") // free | pro | lifetime
   status               String    @default("active") // active | revoked
   maxBooths            Int       @default(1)
-  deviceToken          String?   @unique
   organizationId       String?
   email                String?
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
-  activatedAt          DateTime?
-  lastValidatedAt      DateTime?
   expiresAt            DateTime?
   createdAt            DateTime  @default(now())
 
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  organization Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  activations  LicenseActivation[]
 
   @@index([organizationId])
+}
+
+// One row per booth a license key has been activated on. A plan's
+// maxBooths caps how many of these a single license can have at once.
+model LicenseActivation {
+  id              String   @id @default(cuid())
+  licenseId       String
+  deviceToken     String   @unique
+  activatedAt     DateTime @default(now())
+  lastValidatedAt DateTime @default(now())
+
+  license License @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@index([licenseId])
 }
 
 // Records Stripe webhook event IDs we've already applied, so a Stripe

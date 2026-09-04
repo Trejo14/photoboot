@@ -1,4 +1,12 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
 import type { Booth } from "@prisma/client";
 import { PhotosService } from "./photos.service";
 import { PhotosCleanupService } from "./photos-cleanup.service";
@@ -12,7 +20,7 @@ import { AdminKeyGuard } from "../auth/admin-key.guard";
 export class PhotosController {
   constructor(
     private readonly photos: PhotosService,
-    private readonly cleanup: PhotosCleanupService
+    private readonly cleanup: PhotosCleanupService,
   ) {}
 
   @UseGuards(DeviceTokenGuard)
@@ -31,5 +39,19 @@ export class PhotosController {
   @Post("cleanup-now")
   cleanupNow() {
     return this.cleanup.handleExpiredPhotos();
+  }
+
+  @UseGuards(AdminKeyGuard)
+  @Get("events/:eventId")
+  listByEvent(
+    @Param("eventId") eventId: string,
+    @Query("take") take?: string,
+    @Query("cursor") cursor?: string,
+  ) {
+    return this.photos.listByEvent(
+      eventId,
+      take ? Number(take) : undefined,
+      cursor,
+    );
   }
 }

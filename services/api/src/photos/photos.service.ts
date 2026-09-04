@@ -23,13 +23,16 @@ const ALLOWED_CONTENT_TYPES = new Set([
 export class PhotosService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly s3: S3Service
+    private readonly s3: S3Service,
   ) {}
 
-  async presign(booth: Booth, dto: PresignPhotoDto): Promise<PresignUploadOutput> {
+  async presign(
+    booth: Booth,
+    dto: PresignPhotoDto,
+  ): Promise<PresignUploadOutput> {
     if (!ALLOWED_CONTENT_TYPES.has(dto.contentType)) {
       throw new BadRequestException(
-        `Unsupported content type: ${dto.contentType}`
+        `Unsupported content type: ${dto.contentType}`,
       );
     }
 
@@ -60,12 +63,17 @@ export class PhotosService {
     return { photo };
   }
 
-  async listByEvent(eventId: string) {
+  async listByEvent(eventId: string, take = 50, cursor?: string) {
+    const limit = Math.min(Math.max(take, 1), 100);
     const photos = await this.prisma.photo.findMany({
       where: { eventId },
       orderBy: { createdAt: "desc" },
+      take: limit,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     });
-    return { photos };
+    const nextCursor =
+      photos.length === limit ? photos[photos.length - 1]!.id : null;
+    return { photos, nextCursor };
   }
 
   async findById(id: string) {

@@ -40,7 +40,7 @@ export class LicensesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
   ) {}
 
   async issueLicense(
@@ -50,7 +50,7 @@ export class LicensesService {
       stripeCustomerId?: string | null;
       stripeSubscriptionId?: string | null;
       expiresAt?: Date | null;
-    }
+    },
   ): Promise<License> {
     const license = await this.prisma.license.create({
       data: {
@@ -74,9 +74,10 @@ export class LicensesService {
     email: string,
     plan: string,
     interval: string | undefined,
-    method: string
+    method: string,
   ) {
-    const priceKey = plan === "lifetime" ? "lifetime:one-time" : `pro:${interval}`;
+    const priceKey =
+      plan === "lifetime" ? "lifetime:one-time" : `pro:${interval}`;
     const amount = MANUAL_ORDER_PRICES[priceKey];
     if (!amount) {
       throw new BadRequestException("Plan o periodicidad inválidos");
@@ -140,10 +141,11 @@ export class LicensesService {
 
   async activate(
     booth: Booth,
-    dto: ActivateLicenseDto
+    dto: ActivateLicenseDto,
   ): Promise<ActivateLicenseOutput> {
     const license = await this.prisma.license.findUnique({
       where: { licenseKey: dto.licenseKey },
+      include: { activations: true },
     });
     if (!license) {
       throw new NotFoundException("Clave de licencia inválida");
@@ -154,18 +156,25 @@ export class LicensesService {
     if (license.expiresAt && license.expiresAt.getTime() < Date.now()) {
       throw new ForbiddenException("Licencia expirada");
     }
-    if (license.deviceToken && license.deviceToken !== booth.deviceToken) {
-      throw new ConflictException("La licencia ya está activada en otra cabina");
-    }
 
-    await this.prisma.license.update({
-      where: { id: license.id },
-      data: {
-        deviceToken: booth.deviceToken,
-        activatedAt: new Date(),
-        lastValidatedAt: new Date(),
-      },
-    });
+    const existing = license.activations.find(
+      (a) => a.deviceToken === booth.deviceToken,
+    );
+    if (existing) {
+      await this.prisma.licenseActivation.update({
+        where: { id: existing.id },
+        data: { lastValidatedAt: new Date() },
+      });
+    } else {
+      if (license.activations.length >= license.maxBooths) {
+        throw new ConflictException(
+          `Esta licencia ya alcanzó el máximo de ${license.maxBooths} cabina(s) para el plan ${license.plan}.`,
+        );
+      }
+      await this.prisma.licenseActivation.create({
+        data: { licenseId: license.id, deviceToken: booth.deviceToken },
+      });
+    }
 
     return {
       plan: license.plan as ActivateLicenseOutput["plan"],
@@ -175,12 +184,14 @@ export class LicensesService {
   }
 
   async validate(booth: Booth): Promise<ActivateLicenseOutput> {
-    const license = await this.prisma.license.findUnique({
+    const activation = await this.prisma.licenseActivation.findUnique({
       where: { deviceToken: booth.deviceToken },
+      include: { license: true },
     });
-    if (!license) {
+    if (!activation) {
       return { plan: "free", expiresAt: null, graceDays: GRACE_DAYS };
     }
+    const license = activation.license;
     if (license.status === "revoked") {
       throw new ForbiddenException("Licencia revocada");
     }
@@ -188,8 +199,8 @@ export class LicensesService {
       throw new ForbiddenException("Licencia expirada");
     }
 
-    await this.prisma.license.update({
-      where: { id: license.id },
+    await this.prisma.licenseActivation.update({
+      where: { id: activation.id },
       data: { lastValidatedAt: new Date() },
     });
 
@@ -201,10 +212,23 @@ export class LicensesService {
   }
 
   async list() {
-    return this.prisma.license.findMany({
+    const licenses = await this.prisma.license.findMany({
       orderBy: { createdAt: "desc" },
-      include: { organization: true },
+      include: { organization: true, activations: true },
     });
+
+    return licenses.map(({ activations, ...license }) => ({
+      ...license,
+      activeDevices: activations.length,
+      activatedAt: activations.length
+        ? new Date(Math.min(...activations.map((a) => a.activatedAt.getTime())))
+        : null,
+      lastValidatedAt: activations.length
+        ? new Date(
+            Math.max(...activations.map((a) => a.lastValidatedAt.getTime())),
+          )
+        : null,
+    }));
   }
 
   async revoke(id: string) {
@@ -214,7 +238,7 @@ export class LicensesService {
     }
     return this.prisma.license.update({
       where: { id },
-      data: { status: "revoked", deviceToken: null },
+      data: { status: "revoked" },
     });
   }
 }

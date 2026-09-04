@@ -1,17 +1,12 @@
-import { BadRequestException, Controller, Get, Param, Query } from "@nestjs/common";
+import { Controller, Get, Param } from "@nestjs/common";
 import { PhotosService } from "./photos.service";
 
+// Only single-photo lookup by its random id is public — that's the actual
+// use case (a guest opening their own /p/[photoId] link). Listing every
+// photo in an event is admin-only, see PhotosController.
 @Controller("photos")
 export class PhotosPublicController {
   constructor(private readonly photos: PhotosService) {}
-
-  @Get()
-  list(@Query("eventId") eventId?: string) {
-    if (!eventId) {
-      throw new BadRequestException("eventId query parameter is required");
-    }
-    return this.photos.listByEvent(eventId);
-  }
 
   @Get(":id")
   async findById(@Param("id") id: string) {

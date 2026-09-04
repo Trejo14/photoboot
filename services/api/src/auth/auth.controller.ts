@@ -8,6 +8,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "./jwt.guard";
 import type { AuthenticatedRequest } from "./jwt.guard";
@@ -18,18 +19,21 @@ import { LoginDto } from "./dto/login.dto";
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post("register")
   @UsePipes(new ValidationPipe({ whitelist: true }))
   register(@Body() dto: RegisterDto) {
     return this.auth.register(dto.name, dto.email, dto.password);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post("login")
   @UsePipes(new ValidationPipe({ whitelist: true }))
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto.email, dto.password);
   }
 
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post("request-code")
   requestCode(@Body("email") email: string) {
     if (!email || typeof email !== "string") {
@@ -38,6 +42,7 @@ export class AuthController {
     return this.auth.requestCode(email);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post("verify-code")
   verifyCode(@Body("email") email: string, @Body("code") code: string) {
     if (!email || !code) {

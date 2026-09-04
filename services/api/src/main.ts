@@ -9,7 +9,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
 
-  const corsOrigin = (config.get<string>("CORS_ORIGIN") ?? "http://localhost:3000")
+  // Railway sits in front of the app behind a reverse proxy; without this,
+  // every request's IP resolves to the proxy's address, so rate limiting
+  // by IP would throttle all clients as one.
+  app.getHttpAdapter().getInstance().set("trust proxy", 1);
+
+  const corsOrigin = (
+    config.get<string>("CORS_ORIGIN") ?? "http://localhost:3000"
+  )
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
@@ -18,10 +25,14 @@ async function bootstrap() {
   // `tauri://localhost` o `https://tauri.localhost` según plataforma/versión;
   // se acepta cualquier variante en vez de fijar un solo string exacto.
   const isTauriOrigin = (origin: string) =>
-    origin.startsWith("tauri://") || /^https?:\/\/tauri\.localhost$/.test(origin);
+    origin.startsWith("tauri://") ||
+    /^https?:\/\/tauri\.localhost$/.test(origin);
 
   app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
       if (!origin || corsOrigin.includes(origin) || isTauriOrigin(origin)) {
         callback(null, true);
         return;
@@ -30,13 +41,14 @@ async function bootstrap() {
     },
   });
 
-  app.use(
-    "/payments/webhook",
-    express.raw({ type: "application/json" })
-  );
+  app.use("/payments/webhook", express.raw({ type: "application/json" }));
 
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false })
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: false,
+    }),
   );
 
   const port = config.get<number>("PORT") ?? 4000;

@@ -144,7 +144,7 @@ export interface LicenseSummary {
   plan: LicensePlan;
   status: LicenseStatus;
   maxBooths: number;
-  deviceToken: string | null;
+  activeDevices: number;
   organizationId: string | null;
   activatedAt: string | null;
   lastValidatedAt: string | null;
