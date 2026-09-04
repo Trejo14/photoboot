@@ -9,10 +9,14 @@ import {
   WifiOffIcon,
   ExclamationIcon,
 } from "./icons";
-import { listEvents, type EventItem } from "@/lib/api";
+import { listEvents, createOwnEvent, type EventItem } from "@/lib/api";
 
 interface Props {
   onRegister: (info: { eventId: string; boothName: string }) => Promise<void>;
+}
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export function EventMenuScreen({ onRegister }: Props) {
@@ -20,11 +24,17 @@ export function EventMenuScreen({ onRegister }: Props) {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [mode, setMode] = useState<"select" | "manual">("select");
+  const [mode, setMode] = useState<"select" | "create" | "manual">("select");
   const [manualEventId, setManualEventId] = useState("");
   const [boothName, setBoothName] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const [newEventName, setNewEventName] = useState("");
+  const [newEventStart, setNewEventStart] = useState(todayInputValue());
+  const [newEventEnd, setNewEventEnd] = useState("");
+  const [creatingEvent, setCreatingEvent] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     const onOnline = () => setIsOffline(false);
@@ -110,6 +120,40 @@ export function EventMenuScreen({ onRegister }: Props) {
     }
   }
 
+  async function handleCreateEvent(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setCreatingEvent(true);
+    setCreateError(null);
+    try {
+      const created = await createOwnEvent({
+        name: newEventName.trim(),
+        startDate: new Date(newEventStart).toISOString(),
+        endDate: newEventEnd ? new Date(newEventEnd).toISOString() : null,
+      });
+      setNewEventName("");
+      setNewEventStart(todayInputValue());
+      setNewEventEnd("");
+      setMode("select");
+      await fetchEvents();
+      setSelectedEvent({
+        id: created.id,
+        name: created.name,
+        organizationId: "",
+        startDate: created.startDate,
+        endDate: created.endDate,
+        isOffline: false,
+        _count: { booths: 0, photos: 0 },
+      });
+      setBoothName(created.name.slice(0, 20) || "Cabina 1");
+    } catch (err) {
+      setCreateError(
+        err instanceof Error ? err.message : "No se pudo crear el evento",
+      );
+    } finally {
+      setCreatingEvent(false);
+    }
+  }
+
   function formatDate(dateStr: string) {
     return new Date(dateStr).toLocaleDateString("es-MX", {
       day: "numeric",
@@ -125,7 +169,8 @@ export function EventMenuScreen({ onRegister }: Props) {
           <LogoBirdcam size="10" className="text-white" />
           <h1 className="text-2xl font-bold text-white">Seleccionar evento</h1>
           <p className="text-sm text-white/50">
-            Elige el evento activo o configura la cabina manualmente.
+            Elige el evento activo, crea uno nuevo o configura la cabina
+            manualmente.
           </p>
         </div>
 
@@ -149,11 +194,19 @@ export function EventMenuScreen({ onRegister }: Props) {
             Eventos
           </Button>
           <Button
+            variant={mode === "create" ? "default" : "secondary"}
+            onClick={() => setMode("create")}
+            className="flex-1"
+            disabled={isOffline}
+          >
+            <PlusIcon className="mr-2 h-4 w-4" />
+            Crear evento
+          </Button>
+          <Button
             variant={mode === "manual" ? "default" : "secondary"}
             onClick={() => setMode("manual")}
             className="flex-1"
           >
-            <PlusIcon className="mr-2 h-4 w-4" />
             Manual
           </Button>
         </div>
@@ -199,10 +252,10 @@ export function EventMenuScreen({ onRegister }: Props) {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setMode("manual")}
+                  onClick={() => setMode("create")}
                 >
                   <PlusIcon className="mr-2 h-4 w-4" />
-                  Configurar manual
+                  Crear el primero
                 </Button>
               </div>
             ) : (
@@ -286,6 +339,61 @@ export function EventMenuScreen({ onRegister }: Props) {
               </form>
             )}
           </div>
+        ) : mode === "create" ? (
+          <form onSubmit={handleCreateEvent} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-white/70">
+                Nombre del evento
+              </label>
+              <Input
+                value={newEventName}
+                onChange={(e) => setNewEventName(e.target.value)}
+                placeholder="Boda de Ana y Luis"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-white/70">
+                  Fecha de inicio
+                </label>
+                <Input
+                  type="date"
+                  value={newEventStart}
+                  onChange={(e) => setNewEventStart(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-white/70">
+                  Fecha de fin <span className="text-white/30">(opcional)</span>
+                </label>
+                <Input
+                  type="date"
+                  value={newEventEnd}
+                  onChange={(e) => setNewEventEnd(e.target.value)}
+                  min={newEventStart}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-white/40">
+              Después de esa fecha de fin, el evento se marca como finalizado y
+              las cabinas registradas en él ya no podrán seguir tomando fotos.
+            </p>
+            {createError && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-2.5">
+                <ExclamationIcon className="h-4 w-4 shrink-0 text-red-400" />
+                <p className="text-xs text-red-300/80">{createError}</p>
+              </div>
+            )}
+            <Button
+              type="submit"
+              className="w-full gradient-birdcam"
+              disabled={creatingEvent || !newEventName.trim()}
+            >
+              {creatingEvent ? "Creando…" : "Crear evento"}
+            </Button>
+          </form>
         ) : (
           <form onSubmit={handleManualSubmit} className="space-y-4">
             <div className="space-y-1.5">

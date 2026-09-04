@@ -11,7 +11,7 @@ export class PaymentsService {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
-    private readonly licenses: LicensesService
+    private readonly licenses: LicensesService,
   ) {
     const secretKey = this.config.get<string>("STRIPE_SECRET_KEY");
     if (secretKey) {
@@ -22,7 +22,7 @@ export class PaymentsService {
   private getStripe(): Stripe {
     if (!this.stripe) {
       throw new BadRequestException(
-        "Pagos no configurados. Contacta al administrador."
+        "Pagos no configurados. Contacta al administrador.",
       );
     }
     return this.stripe;
@@ -32,7 +32,7 @@ export class PaymentsService {
     userId: string,
     email: string,
     plan: string,
-    interval: string
+    interval: string,
   ): Promise<{ url: string }> {
     const stripe = this.getStripe();
 
@@ -91,7 +91,7 @@ export class PaymentsService {
   async createLicenseCheckoutSession(
     email: string,
     plan: string,
-    interval?: string
+    interval?: string,
   ): Promise<{ url: string }> {
     const stripe = this.getStripe();
 
@@ -132,7 +132,7 @@ export class PaymentsService {
   }
 
   private async handleLicenseCheckoutCompleted(
-    session: Stripe.Checkout.Session
+    session: Stripe.Checkout.Session,
   ): Promise<void> {
     const email = session.customer_details?.email ?? session.customer_email;
     const plan = session.metadata?.plan;
@@ -161,7 +161,7 @@ export class PaymentsService {
   }
 
   private async updateLicenseFromSubscription(
-    subscription: Stripe.Subscription
+    subscription: Stripe.Subscription,
   ): Promise<void> {
     const periodEnd = subscription.items.data[0]?.current_period_end;
     const statusMap: Record<string, string> = {
@@ -182,7 +182,7 @@ export class PaymentsService {
 
   async handleWebhook(
     payload: Buffer,
-    signature: string
+    signature: string,
   ): Promise<{ processed: boolean }> {
     const stripe = this.getStripe();
     const webhookSecret = this.config.get<string>("STRIPE_WEBHOOK_SECRET");
@@ -193,11 +193,7 @@ export class PaymentsService {
 
     let event: Stripe.Event;
     try {
-      event = stripe.webhooks.constructEvent(
-        payload,
-        signature,
-        webhookSecret
-      );
+      event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
     } catch {
       throw new BadRequestException("Webhook signature inválida");
     }
@@ -220,9 +216,8 @@ export class PaymentsService {
           let planExpiresAt: Date | null = null;
           if (subscriptionId) {
             const stripe = this.getStripe();
-            const subscription = await stripe.subscriptions.retrieve(
-              subscriptionId
-            );
+            const subscription =
+              await stripe.subscriptions.retrieve(subscriptionId);
             const periodEnd = subscription.items.data[0]?.current_period_end;
             if (periodEnd) {
               planExpiresAt = new Date(periodEnd * 1000);
@@ -238,6 +233,7 @@ export class PaymentsService {
               stripeSubscriptionId: subscriptionId,
             },
           });
+          await this.syncOrganizationPlan(userId, plan);
         }
         break;
       }
@@ -261,11 +257,8 @@ export class PaymentsService {
           await this.prisma.user.update({
             where: { id: userId },
             data: {
-              planStatus:
-                statusMap[subscription.status] ?? subscription.status,
-              planExpiresAt: periodEnd
-                ? new Date(periodEnd * 1000)
-                : null,
+              planStatus: statusMap[subscription.status] ?? subscription.status,
+              planExpiresAt: periodEnd ? new Date(periodEnd * 1000) : null,
             },
           });
         }
@@ -292,6 +285,7 @@ export class PaymentsService {
               stripeSubscriptionId: null,
             },
           });
+          await this.syncOrganizationPlan(userId, "free");
         }
         break;
       }
@@ -299,9 +293,7 @@ export class PaymentsService {
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId =
-          typeof invoice.customer === "string"
-            ? invoice.customer
-            : null;
+          typeof invoice.customer === "string" ? invoice.customer : null;
         if (customerId) {
           const user = await this.prisma.user.findFirst({
             where: { stripeCustomerId: customerId },
@@ -318,6 +310,24 @@ export class PaymentsService {
     }
 
     return { processed: true };
+  }
+
+  /**
+   * Keeps the user's Organization.plan (what event quota checks and
+   * self-serve event creation read) in sync with their account plan.
+   * A no-op if the user doesn't have an organization yet — it'll pick up
+   * the current plan when one is lazily created on their first event.
+   */
+  private async syncOrganizationPlan(
+    userId: string,
+    plan: string,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.organizationId) return;
+    await this.prisma.organization.update({
+      where: { id: user.organizationId },
+      data: { plan },
+    });
   }
 
   async getSubscription(userId: string) {

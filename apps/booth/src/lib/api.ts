@@ -29,7 +29,7 @@ export async function setAuthToken(token: string | null): Promise<void> {
 
 export async function apiRequest<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const token = await getAuthToken();
   const headers: Record<string, string> = {
@@ -45,8 +45,7 @@ export async function apiRequest<T>(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const msg =
-      (body as { message?: string }).message || `Error ${res.status}`;
+    const msg = (body as { message?: string }).message || `Error ${res.status}`;
     throw new Error(msg);
   }
   return res.json() as Promise<T>;
@@ -61,8 +60,11 @@ export async function requestCode(email: string): Promise<{ message: string }> {
 
 export async function verifyCode(
   email: string,
-  code: string
-): Promise<{ token: string; user: { id: string; email: string; name: string | null } }> {
+  code: string,
+): Promise<{
+  token: string;
+  user: { id: string; email: string; name: string | null };
+}> {
   const data = await apiRequest<{
     token: string;
     user: { id: string; email: string; name: string | null };
@@ -77,8 +79,11 @@ export async function verifyCode(
 export async function register(
   name: string,
   email: string,
-  password: string
-): Promise<{ token: string; user: { id: string; email: string; name: string } }> {
+  password: string,
+): Promise<{
+  token: string;
+  user: { id: string; email: string; name: string };
+}> {
   const data = await apiRequest<{
     token: string;
     user: { id: string; email: string; name: string };
@@ -105,7 +110,7 @@ export interface LoginResponse {
 
 export async function login(
   email: string,
-  password: string
+  password: string,
 ): Promise<LoginResponse> {
   const data = await apiRequest<LoginResponse>("/auth/login", {
     method: "POST",
@@ -143,4 +148,26 @@ export interface EventItem {
 
 export async function listEvents(): Promise<EventItem[]> {
   return apiRequest<EventItem[]>("/events");
+}
+
+export interface CreateEventInput {
+  name: string;
+  startDate: string;
+  endDate?: string | null;
+}
+
+export interface CreatedEvent {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string | null;
+}
+
+export async function createOwnEvent(
+  input: CreateEventInput,
+): Promise<CreatedEvent> {
+  return apiRequest<CreatedEvent>("/events/mine", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }

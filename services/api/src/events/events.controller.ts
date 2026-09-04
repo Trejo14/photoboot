@@ -1,6 +1,15 @@
-import { Body, Controller, Get, Param, Post, Request, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Request,
+  UseGuards,
+} from "@nestjs/common";
 import { EventsService } from "./events.service";
 import { CreateEventDto } from "./dto/create-event.dto";
+import { CreateOwnEventDto } from "./dto/create-own-event.dto";
 import { JwtAuthGuard } from "../auth/jwt.guard";
 import type { AuthenticatedRequest } from "../auth/jwt.guard";
 import { AdminKeyGuard } from "../auth/admin-key.guard";
@@ -13,6 +22,15 @@ export class EventsController {
   @Get()
   list(@Request() req: AuthenticatedRequest) {
     return this.events.listForUser(req.user!.organizationId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("mine")
+  createOwn(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: CreateOwnEventDto,
+  ) {
+    return this.events.createForUser(req.user!, dto);
   }
 
   @UseGuards(AdminKeyGuard)
