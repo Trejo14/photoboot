@@ -2,7 +2,7 @@ import { downloadSteps } from "@/lib/content";
 import { env } from "@/lib/env";
 import { Reveal } from "./reveal";
 import { BoothSetupMockup, IpadFrame } from "./mockups";
-import { DownloadIcon, CheckIcon } from "./icons";
+import { DownloadIcon, CheckIcon, InfoIcon } from "./icons";
 
 export function Download() {
   return (
@@ -59,6 +59,16 @@ export function Download() {
                   <CheckIcon className="size-4 text-green-500" />
                   Compatible con Windows (instalador .exe)
                 </p>
+
+                <div className="mt-4 flex gap-3 rounded-lg border border-border bg-white/5 p-4">
+                  <InfoIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    Windows puede mostrar un aviso de <span className="text-white">SmartScreen</span> porque el
+                    instalador es nuevo y aún no firmado digitalmente. Es normal: haz clic en{" "}
+                    <span className="text-white">&ldquo;Más información&rdquo;</span> y luego en{" "}
+                    <span className="text-white">&ldquo;Ejecutar de todas formas&rdquo;</span> para continuar.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

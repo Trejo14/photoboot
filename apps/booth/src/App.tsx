@@ -5,11 +5,7 @@ import { env } from "@/lib/env";
 import { getDevice, setDevice, sendHeartbeat } from "@/lib/device";
 import type { DeviceInfo } from "@/lib/db";
 import { enqueuePhoto, flushPending, listPending } from "@/lib/queue";
-import {
-  getLicense,
-  isLicenseExpired,
-  validateLicense,
-} from "@/lib/license";
+import { getLicense, isLicenseExpired, validateLicense } from "@/lib/license";
 import { logout } from "@/lib/api";
 import { markSetupComplete } from "@/lib/setup-state";
 import { enterKioskMode, exitKioskMode, listen, invoke } from "@/lib/tauri";
@@ -97,7 +93,8 @@ export function App() {
 
   const flushFor = useCallback(
     async (d: DeviceInfo) => {
-      if (!navigator.onLine) return { synced: 0, failed: 0, photoIds: [] as string[] };
+      if (!navigator.onLine)
+        return { synced: 0, failed: 0, photoIds: [] as string[] };
       send({ type: "SET_SYNCING", syncing: true });
       try {
         return await flushPending(d.deviceToken);
@@ -106,7 +103,7 @@ export function App() {
         send({ type: "SET_SYNCING", syncing: false });
       }
     },
-    [refreshPending, send]
+    [refreshPending, send],
   );
 
   // Boot sequence - runs every time we enter splash
@@ -143,7 +140,8 @@ export function App() {
     const device = state.context.device;
     if (!device) return;
     const beat = () => {
-      if (navigator.onLine) void sendHeartbeat(device.deviceToken).catch(() => undefined);
+      if (navigator.onLine)
+        void sendHeartbeat(device.deviceToken).catch(() => undefined);
     };
     beat();
     const iv = setInterval(beat, 60_000);
@@ -207,7 +205,9 @@ export function App() {
 
   async function handleRegister(info: { eventId: string; boothName: string }) {
     if (!navigator.onLine) {
-      throw new Error("Sin conexión a internet. Conéctate para registrar la cabina.");
+      throw new Error(
+        "Sin conexión a internet. Conéctate para registrar la cabina.",
+      );
     }
     try {
       const res = await fetch(`${env.API_URL}/booths/register`, {
@@ -216,7 +216,10 @@ export function App() {
         body: JSON.stringify({ eventId: info.eventId, name: info.boothName }),
       });
       if (!res.ok) throw new Error(`API ${res.status}`);
-      const data = (await res.json()) as { boothId: string; deviceToken: string };
+      const data = (await res.json()) as {
+        boothId: string;
+        deviceToken: string;
+      };
       const next: DeviceInfo = {
         key: "device",
         boothId: data.boothId,
@@ -228,8 +231,11 @@ export function App() {
       await enterKioskMode();
       send({ type: "REGISTER_SUCCESS", device: next });
     } catch (err) {
-      if (err instanceof Error && err.message.startsWith("Sin conexión")) throw err;
-      throw new Error("No pudimos conectar con el servidor. Verifica tu conexión a internet.");
+      if (err instanceof Error && err.message.startsWith("Sin conexión"))
+        throw err;
+      throw new Error(
+        "No pudimos conectar con el servidor. Verifica tu conexión a internet.",
+      );
     }
   }
 
@@ -271,7 +277,7 @@ export function App() {
           canvas.toBlob(
             (b) => (b ? resolve(b) : reject(new Error("toBlob falló"))),
             "image/jpeg",
-            0.95
+            0.95,
           );
         });
         composedImageUrl = URL.createObjectURL(composedBlob);
@@ -285,7 +291,7 @@ export function App() {
     await enqueuePhoto(
       composedBlob,
       format?.id === "single" ? "single" : "strip",
-      null
+      null,
     );
     await refreshPending();
     const result = await flushFor(device);
@@ -314,178 +320,186 @@ export function App() {
   }
 
   // ── Render ──
-  if (screen === "splash") {
-    return (
-      <SplashScreen
-        progress={state.context.splashProgress}
-        statusText={state.context.splashText}
-      />
-    );
-  }
-
-  if (screen === "wizard") {
-    return <WelcomeWizard onComplete={handleWizardComplete} />;
-  }
-
-  if (screen === "login") {
-    return (
-      <AdminLoginScreen
-        onAuthenticated={handleLoginSuccess}
-        onSelectPlan={(plan) => {
-          send({ type: "SELECT_PLAN", plan });
-        }}
-      />
-    );
-  }
-
-  if (screen === "plan-selector") {
-    return (
-      <PlanSelector
-        onPlanSelected={(plan) => send({ type: "SELECT_PLAN", plan })}
-        onBack={() => send({ type: "BACK_TO_LOGIN" })}
-      />
-    );
-  }
-
-  if (screen === "event-menu") {
-    return <EventMenuScreen onRegister={handleRegister} />;
-  }
-
-  if (screen === "format-selection") {
-    return (
-      <FormatSelectionScreen
-        onSelect={(format) => send({ type: "FORMAT_SELECTED", format })}
-        onBack={() => send({ type: "SWITCH_EVENT" })}
-      />
-    );
-  }
-
-  if (screen === "frame-selection" && state.context.format) {
-    return (
-      <FrameSelectionScreen
-        format={state.context.format}
-        onSelect={(frame) => send({ type: "FRAME_SELECTED", frame })}
-        onSkip={() => send({ type: "SKIP_FRAME" })}
-      />
-    );
-  }
-
-  const device = state.context.device;
-  const showStatusAndDevice =
-    device &&
-    screen !== "agradecimiento" &&
-    screen !== "imprimiendo" &&
-    screen !== "vista-final";
-
-  if (screen === "capture") {
-    return (
-      <div className="relative min-h-dvh bg-black">
-        {env.IS_DEV && <div className="dev-badge">MODO DESARROLLO</div>}
-        <CaptureScreen
-          format={state.context.format}
-          onCapture={handleCapture}
-          onAllCaptured={handleAllCaptured}
-        />
-        {showStatusAndDevice && (
-          <>
-            {env.IS_DEV && (
-              <button
-                onClick={() => void invoke("exit_app")}
-                className="absolute left-4 top-4 z-10 rounded-md bg-red-500/20 px-3 py-1 text-xs text-red-400 hover:bg-red-500/40"
-              >
-                ✕ Salir
-              </button>
-            )}
-            <button
-              onClick={() => send({ type: "SHOW_LICENSE_SCREEN" })}
-              className="absolute right-4 top-4 z-10 rounded-md bg-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/20"
-            >
-              {state.context.license
-                ? `Licencia ${state.context.license.plan}`
-                : "Activar licencia"}
-            </button>
-            <StatusBar
-              online={state.context.online}
-              pending={state.context.pendingCount}
-              syncing={state.context.syncing}
-            />
-            <AdminMenuModal
-              onSwitchEvent={handleSwitchEvent}
-              onLogout={handleLogout}
-            />
-            <AdminHotDot />
-          </>
-        )}
-      </div>
-    );
-  }
-
-  if (screen === "preview") {
-    const lastFrame = state.context.frames[state.context.frames.length - 1];
-    const previewUrl = lastFrame ? URL.createObjectURL(lastFrame) : "";
-    return (
-      <div className="relative min-h-dvh bg-black">
-        {env.IS_DEV && <div className="dev-badge">MODO DESARROLLO</div>}
-        <PreviewScreen
-          imageUrl={previewUrl}
-          onSave={handleSave}
-          onRetake={handleRetake}
-        />
-      </div>
-    );
-  }
-
-  if (screen === "vista-final" && state.context.composedImageUrl) {
-    return (
-      <VistaFinalScreen
-        imageUrl={state.context.composedImageUrl}
-        onAutoPrint={() => send({ type: "AUTO_PRINT" })}
-      />
-    );
-  }
-
-  if (screen === "imprimiendo") {
-    return (
-      <ImprimiendoScreen
-        error={state.context.printerError}
-        onRetry={() => send({ type: "PRINT_RETRY" })}
-        onSkip={() => send({ type: "SKIP_PRINT" })}
-      />
-    );
-  }
-
-  if (screen === "agradecimiento") {
-    return (
-      <AgradecimientoScreen
-        photoId={state.context.photoId}
-        onTimeout={() => send({ type: "THANKS_TIMEOUT" })}
-      />
-    );
-  }
-
-  if (screen === "license" && device) {
-    return (
-      <LicenseScreen
-        deviceToken={device.deviceToken}
-        onActivated={(lic) =>
-          send({ type: "LICENSE_ACTIVATED", license: lic })
-        }
-        onCancel={
-          state.context.licenseBlocked
-            ? undefined
-            : () => send({ type: "HIDE_LICENSE_SCREEN" })
-        }
-      />
-    );
-  }
-
   return (
-    <div className="relative min-h-dvh bg-black">
-      {env.IS_DEV && <div className="dev-badge">MODO DESARROLLO</div>}
+    <>
+      {renderScreen()}
       <ExitConfirmModal
         open={exitConfirmOpen}
         onClose={() => setExitConfirmOpen(false)}
       />
-    </div>
+    </>
   );
+
+  function renderScreen() {
+    if (screen === "splash") {
+      return (
+        <SplashScreen
+          progress={state.context.splashProgress}
+          statusText={state.context.splashText}
+        />
+      );
+    }
+
+    if (screen === "wizard") {
+      return <WelcomeWizard onComplete={handleWizardComplete} />;
+    }
+
+    if (screen === "login") {
+      return (
+        <AdminLoginScreen
+          onAuthenticated={handleLoginSuccess}
+          onSelectPlan={(plan) => {
+            send({ type: "SELECT_PLAN", plan });
+          }}
+        />
+      );
+    }
+
+    if (screen === "plan-selector") {
+      return (
+        <PlanSelector
+          onPlanSelected={(plan) => send({ type: "SELECT_PLAN", plan })}
+          onBack={() => send({ type: "BACK_TO_LOGIN" })}
+        />
+      );
+    }
+
+    if (screen === "event-menu") {
+      return <EventMenuScreen onRegister={handleRegister} />;
+    }
+
+    if (screen === "format-selection") {
+      return (
+        <FormatSelectionScreen
+          onSelect={(format) => send({ type: "FORMAT_SELECTED", format })}
+          onBack={() => send({ type: "SWITCH_EVENT" })}
+        />
+      );
+    }
+
+    if (screen === "frame-selection" && state.context.format) {
+      return (
+        <FrameSelectionScreen
+          format={state.context.format}
+          onSelect={(frame) => send({ type: "FRAME_SELECTED", frame })}
+          onSkip={() => send({ type: "SKIP_FRAME" })}
+        />
+      );
+    }
+
+    const device = state.context.device;
+    const showStatusAndDevice =
+      device &&
+      screen !== "agradecimiento" &&
+      screen !== "imprimiendo" &&
+      screen !== "vista-final";
+
+    if (screen === "capture") {
+      return (
+        <div className="relative min-h-dvh bg-black">
+          {env.IS_DEV && <div className="dev-badge">MODO DESARROLLO</div>}
+          <CaptureScreen
+            format={state.context.format}
+            onCapture={handleCapture}
+            onAllCaptured={handleAllCaptured}
+          />
+          {showStatusAndDevice && (
+            <>
+              {env.IS_DEV && (
+                <button
+                  onClick={() => void invoke("exit_app")}
+                  className="absolute left-4 top-4 z-10 rounded-md bg-red-500/20 px-3 py-1 text-xs text-red-400 hover:bg-red-500/40"
+                >
+                  ✕ Salir
+                </button>
+              )}
+              <button
+                onClick={() => send({ type: "SHOW_LICENSE_SCREEN" })}
+                className="absolute right-4 top-4 z-10 rounded-md bg-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/20"
+              >
+                {state.context.license
+                  ? `Licencia ${state.context.license.plan}`
+                  : "Activar licencia"}
+              </button>
+              <StatusBar
+                online={state.context.online}
+                pending={state.context.pendingCount}
+                syncing={state.context.syncing}
+              />
+              <AdminMenuModal
+                onSwitchEvent={handleSwitchEvent}
+                onLogout={handleLogout}
+              />
+              <AdminHotDot />
+            </>
+          )}
+        </div>
+      );
+    }
+
+    if (screen === "preview") {
+      const lastFrame = state.context.frames[state.context.frames.length - 1];
+      const previewUrl = lastFrame ? URL.createObjectURL(lastFrame) : "";
+      return (
+        <div className="relative min-h-dvh bg-black">
+          {env.IS_DEV && <div className="dev-badge">MODO DESARROLLO</div>}
+          <PreviewScreen
+            imageUrl={previewUrl}
+            onSave={handleSave}
+            onRetake={handleRetake}
+          />
+        </div>
+      );
+    }
+
+    if (screen === "vista-final" && state.context.composedImageUrl) {
+      return (
+        <VistaFinalScreen
+          imageUrl={state.context.composedImageUrl}
+          onAutoPrint={() => send({ type: "AUTO_PRINT" })}
+        />
+      );
+    }
+
+    if (screen === "imprimiendo") {
+      return (
+        <ImprimiendoScreen
+          error={state.context.printerError}
+          onRetry={() => send({ type: "PRINT_RETRY" })}
+          onSkip={() => send({ type: "SKIP_PRINT" })}
+        />
+      );
+    }
+
+    if (screen === "agradecimiento") {
+      return (
+        <AgradecimientoScreen
+          photoId={state.context.photoId}
+          onTimeout={() => send({ type: "THANKS_TIMEOUT" })}
+        />
+      );
+    }
+
+    if (screen === "license" && device) {
+      return (
+        <LicenseScreen
+          deviceToken={device.deviceToken}
+          onActivated={(lic) =>
+            send({ type: "LICENSE_ACTIVATED", license: lic })
+          }
+          onCancel={
+            state.context.licenseBlocked
+              ? undefined
+              : () => send({ type: "HIDE_LICENSE_SCREEN" })
+          }
+        />
+      );
+    }
+
+    return (
+      <div className="relative min-h-dvh bg-black">
+        {env.IS_DEV && <div className="dev-badge">MODO DESARROLLO</div>}
+      </div>
+    );
+  }
 }
