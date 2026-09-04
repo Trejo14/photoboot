@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { ScheduleModule } from "@nestjs/schedule";
 import { ConfigModuleGlobal } from "./config/config.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { S3Module } from "./s3/s3.module";
@@ -11,10 +12,12 @@ import { BoothsModule } from "./booths/booths.module";
 import { PhotosModule } from "./photos/photos.module";
 import { LicensesModule } from "./licenses/licenses.module";
 import { PaymentsModule } from "./payments/payments.module";
+import { NewsletterModule } from "./newsletter/newsletter.module";
 
 @Module({
   imports: [
     ConfigModuleGlobal,
+    ScheduleModule.forRoot(),
     PrismaModule,
     S3Module,
     EmailModule,
@@ -24,6 +27,7 @@ import { PaymentsModule } from "./payments/payments.module";
     PhotosModule,
     LicensesModule,
     PaymentsModule,
+    NewsletterModule,
   ],
   controllers: [HealthController, DownloadController],
 })

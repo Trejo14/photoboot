@@ -1,14 +1,19 @@
 import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import type { Booth } from "@prisma/client";
 import { PhotosService } from "./photos.service";
+import { PhotosCleanupService } from "./photos-cleanup.service";
 import { PresignPhotoDto } from "./dto/presign-photo.dto";
 import { CreatePhotoDto } from "./dto/create-photo.dto";
 import { DeviceTokenGuard } from "../auth/device-token.guard";
 import { CurrentBooth } from "../auth/current-booth.decorator";
+import { AdminKeyGuard } from "../auth/admin-key.guard";
 
 @Controller("photos")
 export class PhotosController {
-  constructor(private readonly photos: PhotosService) {}
+  constructor(
+    private readonly photos: PhotosService,
+    private readonly cleanup: PhotosCleanupService
+  ) {}
 
   @UseGuards(DeviceTokenGuard)
   @Post("presign")
@@ -20,5 +25,11 @@ export class PhotosController {
   @Post()
   create(@CurrentBooth() booth: Booth, @Body() dto: CreatePhotoDto) {
     return this.photos.create(booth, dto);
+  }
+
+  @UseGuards(AdminKeyGuard)
+  @Post("cleanup-now")
+  cleanupNow() {
+    return this.cleanup.handleExpiredPhotos();
   }
 }

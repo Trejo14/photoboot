@@ -23,6 +23,12 @@ const envSchema = z.object({
   STRIPE_PRICE_LIFETIME: z.string().optional(),
   STRIPE_SUCCESS_URL: z.string().url().optional(),
   STRIPE_CANCEL_URL: z.string().url().optional(),
+  SPEI_CLABE: z.string().optional(),
+  SPEI_BANK_NAME: z.string().optional(),
+  SPEI_BENEFICIARY: z.string().optional(),
+  PAYPAL_ME_LINK: z.string().optional(),
+  PAYPAL_EMAIL: z.string().optional(),
+  PHOTO_RETENTION_HOURS: z.coerce.number().int().positive().default(32),
 });
 
 export type Env = z.infer<typeof envSchema>;
