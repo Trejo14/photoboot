@@ -198,6 +198,7 @@ export const boothMachine = setup({
           }),
           target: "frame-selection",
         },
+        SWITCH_EVENT: "event-menu",
       },
     },
 
@@ -215,6 +216,7 @@ export const boothMachine = setup({
           }),
           target: "capture",
         },
+        SWITCH_EVENT: "event-menu",
       },
     },
 
