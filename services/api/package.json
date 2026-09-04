@@ -9,6 +9,7 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"src/**/*.ts\" \"prisma/**/*.ts\" --max-warnings=0",
     "typecheck": "tsc --noEmit",
+    "test": "jest",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
@@ -44,16 +45,20 @@
     "seed": "tsx prisma/seed.ts"
   },
   "devDependencies": {
+    "@jest/globals": "^30.5.1",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@photobooth/config": "workspace:*",
     "@types/bcryptjs": "^3.0.0",
     "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
     "@types/passport-jwt": "^4.0.1",
     "dotenv": "^16.4.7",
     "eslint": "^9.23.0",
+    "jest": "^30.5.1",
     "prisma": "^6.0.0",
+    "ts-jest": "^29.4.12",
     "tsx": "^4.19.0",
     "typescript": "^5.7.3"
   }

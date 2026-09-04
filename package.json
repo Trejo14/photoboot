@@ -10,6 +10,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css,prisma}\"",
     "db:migrate": "pnpm --filter @photobooth/api db:migrate",
     "db:studio": "pnpm --filter @photobooth/api db:studio",
