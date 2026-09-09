@@ -2,11 +2,12 @@ import { Button } from "@photobooth/ui";
 
 interface Props {
   error: string | null;
+  feedback?: string | null;
   onRetry: () => void;
   onSkip: () => void;
 }
 
-export function ImprimiendoScreen({ error, onRetry, onSkip }: Props) {
+export function ImprimiendoScreen({ error, feedback, onRetry, onSkip }: Props) {
   if (error) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-background p-4">
@@ -51,7 +52,9 @@ export function ImprimiendoScreen({ error, onRetry, onSkip }: Props) {
       <div className="relative">
         <div className="h-20 w-20 rounded-full border-4 border-white/10 border-t-[#22d3ee] animate-spin" />
       </div>
-      <h2 className="text-2xl font-bold text-white">Imprimiendo tu foto...</h2>
+      <h2 className="text-2xl font-bold text-white">
+        {feedback ?? "Imprimiendo tu foto..."}
+      </h2>
       <p className="text-sm text-white/60">
         No cierres la aplicación
       </p>

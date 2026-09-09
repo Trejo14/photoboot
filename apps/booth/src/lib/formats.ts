@@ -1,9 +1,9 @@
 export interface PhotoFormat {
-  id: "single" | "strip-2" | "strip-3";
+  id: "single" | "strip-2" | "strip-3" | "grid-4";
   name: string;
   description: string;
   photoCount: number;
-  layout: "single" | "vertical-strip";
+  layout: "single" | "vertical-strip" | "grid";
   thumbnail: string;
 }
 
@@ -31,6 +31,14 @@ export const PHOTO_FORMATS: PhotoFormat[] = [
     photoCount: 3,
     layout: "vertical-strip",
     thumbnail: "3",
+  },
+  {
+    id: "grid-4",
+    name: "4 Fotos",
+    description: "Cuatro fotos en cuadrícula",
+    photoCount: 4,
+    layout: "grid",
+    thumbnail: "4",
   },
 ];
 

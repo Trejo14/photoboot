@@ -45,7 +45,12 @@ export type BoothEvent =
   | { type: "FRAME_CAPTURED"; blob: Blob }
   | { type: "ALL_FRAMES_CAPTURED"; frames: Blob[] }
   | { type: "RETAKE" }
-  | { type: "COMPOSE_COMPLETE"; imageUrl: string; blob: Blob; photoId: string }
+  | {
+      type: "COMPOSE_COMPLETE";
+      imageUrl: string;
+      blob: Blob;
+      photoId: string | null;
+    }
   | { type: "COMPOSE_FAILED"; error: string }
   | { type: "PRINT_SUCCESS" }
   | { type: "PRINT_FAILED"; error: string }
@@ -283,7 +288,10 @@ export const boothMachine = setup({
         },
         SHOW_LICENSE_SCREEN: "license",
         SWITCH_EVENT: "event-menu",
-        LOGOUT: "login",
+        LOGOUT: {
+          target: "login",
+          actions: assign({ device: undefined }),
+        },
       },
     },
 
@@ -371,7 +379,7 @@ export const boothMachine = setup({
         },
         LOGOUT: {
           target: "login",
-          actions: assign({ eventFinished: false, eventName: null }),
+          actions: assign({ eventFinished: false, eventName: null, device: undefined }),
         },
       },
     },

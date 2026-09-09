@@ -11,6 +11,8 @@ export interface QrSlot {
   size: number;
 }
 
+import { GENERATED_FRAME_TEMPLATES } from "./frame-templates.generated";
+
 export interface FrameTemplate {
   id: string;
   name: string;
@@ -56,6 +58,7 @@ export const FRAME_TEMPLATES: FrameTemplate[] = [
     qrSlot: { x: 460, y: 580, size: 80 },
     canvasSize: { width: 600, height: 680 },
   },
+  ...GENERATED_FRAME_TEMPLATES,
 ];
 
 export function getTemplatesForFormat(formatId: string): FrameTemplate[] {

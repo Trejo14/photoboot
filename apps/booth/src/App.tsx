@@ -5,6 +5,7 @@ import { env } from "@/lib/env";
 import {
   getDevice,
   setDevice,
+  clearDevice,
   sendHeartbeat,
   getBoothEventStatus,
 } from "@/lib/device";
@@ -115,6 +116,11 @@ export function App() {
 
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [licenseOverlayOpen, setLicenseOverlayOpen] = useState(false);
+  // Printing on the desktop app is silent by design (guests shouldn't see
+  // the Windows print dialog), which makes a failed/misconfigured printer
+  // look identical to "nothing happened". Surface what actually ran so
+  // this is debuggable during setup instead of a silent black box.
+  const [printFeedback, setPrintFeedback] = useState<string | null>(null);
 
   const lastFrame = state.context.frames[state.context.frames.length - 1];
   const [previewUrl, setPreviewUrl] = useState("");
@@ -133,20 +139,32 @@ export function App() {
     send({ type: "SET_PENDING", count: pending.length });
   }, [send]);
 
-  const flushingRef = useRef(false);
+  // Concurrent callers (the periodic sync timers and a just-captured photo)
+  // share the same in-flight flush instead of bailing out with an empty
+  // result, so a photo taken while a background flush is running still gets
+  // its real photoId back (needed for its QR code) instead of never
+  // resolving one.
+  const flushPromiseRef = useRef<ReturnType<typeof flushPending> | null>(
+    null,
+  );
   const flushFor = useCallback(
     async (d: DeviceInfo) => {
-      if (!navigator.onLine || flushingRef.current)
-        return { synced: 0, failed: 0, photoIds: [] as string[] };
-      flushingRef.current = true;
+      if (!navigator.onLine)
+        return {
+          synced: 0,
+          failed: 0,
+          photoIds: [] as string[],
+          photoIdByEntryId: {} as Record<string, string>,
+        };
+      if (flushPromiseRef.current) return flushPromiseRef.current;
       send({ type: "SET_SYNCING", syncing: true });
-      try {
-        return await flushPending(d.deviceToken);
-      } finally {
-        flushingRef.current = false;
-        await refreshPending();
+      const promise = flushPending(d.deviceToken).finally(() => {
+        flushPromiseRef.current = null;
+        void refreshPending();
         send({ type: "SET_SYNCING", syncing: false });
-      }
+      });
+      flushPromiseRef.current = promise;
+      return promise;
     },
     [refreshPending, send],
   );
@@ -232,9 +250,18 @@ export function App() {
         try {
           const url = URL.createObjectURL(blob);
           try {
-            await printImage(blob, url);
+            const mode = await printImage(blob, url);
+            const label =
+              mode === "thermal"
+                ? "Impreso en impresora térmica"
+                : mode === "silent"
+                  ? "Enviado a la impresora predeterminada"
+                  : "Abriendo el diálogo de impresión de Windows…";
+            setPrintFeedback(label);
+            await new Promise((r) => setTimeout(r, 1200));
             send({ type: "PRINT_SUCCESS" });
           } finally {
+            setPrintFeedback(null);
             setTimeout(() => URL.revokeObjectURL(url), 1000);
           }
         } catch (err) {
@@ -352,7 +379,7 @@ export function App() {
       }
     }
 
-    await enqueuePhoto(
+    const entry = await enqueuePhoto(
       composedBlob,
       format?.id === "single" ? "single" : "strip",
       null,
@@ -360,11 +387,16 @@ export function App() {
     await refreshPending();
     const result = await flushFor(device);
 
+    // Only use a photoId that's actually been uploaded — this specific
+    // entry may not be the one flushed first (or at all, if offline), and
+    // the QR/gallery link would 404 forever if it pointed at an ID the
+    // server never created. `null` tells the delivery screens to show
+    // "will sync when online" instead of a dead link.
     send({
       type: "COMPOSE_COMPLETE",
       imageUrl: composedImageUrl,
       blob: composedBlob,
-      photoId: result.photoIds[0] ?? photoId,
+      photoId: result.photoIdByEntryId[entry.id] ?? null,
     });
   }
 
@@ -379,6 +411,7 @@ export function App() {
 
   async function handleLogout() {
     await logout();
+    await clearDevice();
     await exitKioskMode();
     send({ type: "LOGOUT" });
   }
@@ -568,6 +601,7 @@ export function App() {
       return (
         <ImprimiendoScreen
           error={state.context.printerError}
+          feedback={printFeedback}
           onRetry={() => send({ type: "PRINT_RETRY" })}
           onSkip={() => send({ type: "SKIP_PRINT" })}
         />

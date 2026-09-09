@@ -84,21 +84,18 @@ export function FrameSelectionScreen({
               </span>
             )}
             <div
-              className="rounded-lg border-2 border-dashed border-white/20 group-hover:border-[#22d3ee]/40 flex items-center justify-center transition-colors overflow-hidden"
+              className="rounded-lg border-2 border-dashed border-white/20 group-hover:border-[#22d3ee]/40 flex items-center justify-center transition-colors overflow-hidden bg-black/20"
               style={{
                 width: Math.min(tpl.canvasSize.width * 0.3, 180),
                 height: Math.min(tpl.canvasSize.height * 0.3, 180),
               }}
             >
-              <div className="flex flex-col items-center gap-1 p-2">
-                {tpl.photoSlots.map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-full rounded bg-white/10"
-                    style={{ height: 20 }}
-                  />
-                ))}
-              </div>
+              <img
+                src={tpl.backgroundImageUrl}
+                alt=""
+                className="h-full w-full object-contain"
+                loading="lazy"
+              />
             </div>
             <h3 className="text-sm font-medium text-foreground">{tpl.name}</h3>
           </button>
