@@ -16,7 +16,8 @@ import { getEffectivePlan } from "@/lib/plan";
 import { applyTrialWatermark } from "@/lib/watermark";
 import { logout } from "@/lib/api";
 import { markSetupComplete } from "@/lib/setup-state";
-import { enterKioskMode, exitKioskMode, listen, invoke } from "@/lib/tauri";
+import { getSettings, type Settings } from "@/lib/settings";
+import { enterKioskMode, exitKioskMode, listen } from "@/lib/tauri";
 import { SplashScreen, STATUS_MESSAGES } from "@/components/splash-screen";
 import { WelcomeWizard } from "@/components/welcome-wizard";
 import { AdminLoginScreen } from "@/components/admin-login-screen";
@@ -34,8 +35,11 @@ import { AdminMenuModal } from "@/components/admin-menu-modal";
 import { AdminHotDot } from "@/components/admin-hot-dot";
 import { LicenseScreen } from "@/components/license-screen";
 import { StatusBar } from "@/components/status-bar";
-import { ExitConfirmModal } from "@/components/exit-confirm-modal";
-import { PowerIcon } from "@/components/icons";
+import {
+  ExitConfirmModal,
+  type ExitConfirmMode,
+} from "@/components/exit-confirm-modal";
+import { BoothLayout } from "@/components/booth-layout";
 import { composeFrame } from "@/lib/compose";
 import { printImage } from "@/lib/print";
 
@@ -116,6 +120,10 @@ export function App() {
 
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [licenseOverlayOpen, setLicenseOverlayOpen] = useState(false);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  useEffect(() => {
+    void getSettings().then(setSettings);
+  }, []);
   // Printing on the desktop app is silent by design (guests shouldn't see
   // the Windows print dialog), which makes a failed/misconfigured printer
   // look identical to "nothing happened". Surface what actually ran so
@@ -144,9 +152,7 @@ export function App() {
   // result, so a photo taken while a background flush is running still gets
   // its real photoId back (needed for its QR code) instead of never
   // resolving one.
-  const flushPromiseRef = useRef<ReturnType<typeof flushPending> | null>(
-    null,
-  );
+  const flushPromiseRef = useRef<ReturnType<typeof flushPending> | null>(null);
   const flushFor = useCallback(
     async (d: DeviceInfo) => {
       if (!navigator.onLine)
@@ -250,7 +256,12 @@ export function App() {
         try {
           const url = URL.createObjectURL(blob);
           try {
-            const mode = await printImage(blob, url);
+            const mode = await printImage(blob, url, {
+              printer: settings?.printerName,
+              copies: settings?.printCopies,
+              orientation: settings?.printOrientation,
+              paperSize: settings?.printPaperSize,
+            });
             const label =
               mode === "thermal"
                 ? "Impreso en impresora térmica"
@@ -272,7 +283,7 @@ export function App() {
         }
       })();
     }
-  }, [screen, state.context.composedBlob, send]);
+  }, [screen, state.context.composedBlob, send, settings]);
 
   async function handleWizardComplete() {
     await markSetupComplete();
@@ -416,31 +427,42 @@ export function App() {
     send({ type: "LOGOUT" });
   }
 
-  // ── Render ──
-  const showCloseButton = [
-    "wizard",
-    "login",
-    "plan-selector",
-    "event-menu",
-    "event-finished",
-  ].includes(screen);
+  // ── Navegación global (Volver / Salir) ──
+  // Derivado directo de la máquina de estados: si el estado actual no
+  // define una transición BACK/ABANDON_SESSION, el botón correspondiente
+  // se desactiva solo — no hay lista de pantallas que mantener a mano, así
+  // que una pantalla nueva nunca puede "olvidarse" de estos botones.
+  const canGoBack = state.can({ type: "BACK" });
+  const canAbandonSession = state.can({ type: "ABANDON_SESSION" });
+  const exitMode: ExitConfirmMode = canAbandonSession
+    ? screen === "imprimiendo"
+      ? "abandon-printing"
+      : "abandon-session"
+    : "quit-app";
+
+  function handleBack() {
+    send({ type: "BACK" });
+  }
+
+  function handleAbandonSession() {
+    setExitConfirmOpen(false);
+    send({ type: "ABANDON_SESSION" });
+  }
 
   return (
     <>
-      {renderScreen()}
-      {showCloseButton && (
-        <button
-          onClick={() => setExitConfirmOpen(true)}
-          aria-label="Cerrar Birdcam"
-          title="Cerrar Birdcam"
-          className="fixed right-4 top-4 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/50 text-white/70 backdrop-blur transition hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400"
-        >
-          <PowerIcon className="h-5 w-5" />
-        </button>
-      )}
+      <BoothLayout
+        canGoBack={canGoBack}
+        onBack={handleBack}
+        onExit={() => setExitConfirmOpen(true)}
+      >
+        {renderScreen()}
+      </BoothLayout>
       <ExitConfirmModal
         open={exitConfirmOpen}
+        mode={exitMode}
         onClose={() => setExitConfirmOpen(false)}
+        onAbandonSession={handleAbandonSession}
       />
       {licenseOverlayOpen && state.context.device && (
         <div className="fixed inset-0 z-50">
@@ -486,7 +508,7 @@ export function App() {
       return (
         <PlanSelector
           onPlanSelected={(plan) => send({ type: "SELECT_PLAN", plan })}
-          onBack={() => send({ type: "BACK_TO_LOGIN" })}
+          onBack={() => send({ type: "BACK" })}
         />
       );
     }
@@ -543,17 +565,12 @@ export function App() {
           />
           {showStatusAndDevice && (
             <>
-              {env.IS_DEV && (
-                <button
-                  onClick={() => void invoke("exit_app")}
-                  className="absolute left-4 top-4 z-10 rounded-md bg-red-500/20 px-3 py-1 text-xs text-red-400 hover:bg-red-500/40"
-                >
-                  ✕ Salir
-                </button>
-              )}
+              {/* top-16 en vez de top-4: deja espacio para Volver/Salir de
+                  BoothLayout, que ahora ya cubren el "salir" que este botón
+                  dev-only hacía antes. */}
               <button
                 onClick={() => send({ type: "SHOW_LICENSE_SCREEN" })}
-                className="absolute right-4 top-4 z-10 rounded-md bg-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/20"
+                className="absolute right-4 top-16 z-10 rounded-md bg-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/20"
               >
                 {getEffectivePlan(state.context.license) === "free"
                   ? "Modo de prueba · Activar licencia"
@@ -567,6 +584,15 @@ export function App() {
               <AdminMenuModal
                 onSwitchEvent={handleSwitchEvent}
                 onLogout={handleLogout}
+                onSettingsChange={setSettings}
+                lastPhoto={
+                  state.context.composedBlob && state.context.composedImageUrl
+                    ? {
+                        blob: state.context.composedBlob,
+                        imageUrl: state.context.composedImageUrl,
+                      }
+                    : null
+                }
               />
               <AdminHotDot />
             </>
@@ -593,6 +619,7 @@ export function App() {
         <VistaFinalScreen
           imageUrl={state.context.composedImageUrl}
           onAutoPrint={() => send({ type: "AUTO_PRINT" })}
+          durationMs={settings?.photoDisplayMs}
         />
       );
     }
@@ -613,6 +640,7 @@ export function App() {
         <AgradecimientoScreen
           photoId={state.context.photoId}
           onTimeout={() => send({ type: "THANKS_TIMEOUT" })}
+          durationMs={settings?.thanksDisplayMs}
         />
       );
     }

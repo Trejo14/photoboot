@@ -3,12 +3,15 @@ use serde::Serialize;
 use windows::core::{Error, PCWSTR, PWSTR};
 use windows::Win32::Graphics::Gdi::{
     CreateDCW, DeleteDC, GetDeviceCaps, StretchDIBits, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
-    DIB_RGB_COLORS, HORZRES, SRCCOPY, VERTRES,
+    DEVMODEW, DIB_RGB_COLORS, DMORIENT_LANDSCAPE, DMORIENT_PORTRAIT, DMPAPER_A4, DMPAPER_LETTER,
+    DMPAPER_USER, DM_ORIENTATION, DM_PAPERLENGTH, DM_PAPERSIZE, DM_PAPERWIDTH, DM_OUT_BUFFER,
+    HORZRES, SRCCOPY, VERTRES,
 };
 use windows::Win32::Graphics::Printing::{
-    ClosePrinter, EndDocPrinter, EndPagePrinter, EnumPrintersW, GetDefaultPrinterW, OpenPrinterW,
-    StartDocPrinterW, StartPagePrinter, WritePrinter, DOC_INFO_1W, PRINTER_ALL_ACCESS,
-    PRINTER_DEFAULTSW, PRINTER_ENUM_LOCAL, PRINTER_HANDLE, PRINTER_INFO_2W,
+    ClosePrinter, DocumentPropertiesW, EndDocPrinter, EndPagePrinter, EnumPrintersW,
+    GetDefaultPrinterW, OpenPrinterW, StartDocPrinterW, StartPagePrinter, WritePrinter,
+    DOC_INFO_1W, PRINTER_ALL_ACCESS, PRINTER_DEFAULTSW, PRINTER_ENUM_LOCAL, PRINTER_HANDLE,
+    PRINTER_INFO_2W,
 };
 use windows::Win32::Storage::Xps::{EndDoc, EndPage, StartDocW, StartPage, DOCINFOW};
 
@@ -187,7 +190,11 @@ fn raster_to_escpos(img: &image::GrayImage) -> Vec<u8> {
     data
 }
 
-pub fn print_thermal(printer_name: Option<String>, png_base64: &str) -> Result<(), String> {
+pub fn print_thermal(
+    printer_name: Option<String>,
+    png_base64: &str,
+    copies: Option<u32>,
+) -> Result<(), String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(png_base64)
         .map_err(|e| format!("Imagen base64 inválida: {e}"))?;
@@ -222,7 +229,93 @@ pub fn print_thermal(printer_name: Option<String>, png_base64: &str) -> Result<(
     };
 
     let escpos = raster_to_escpos(&gray);
-    send_raw(&printer, &escpos)
+    let n = copies.unwrap_or(1).max(1);
+    for _ in 0..n {
+        send_raw(&printer, &escpos)?;
+    }
+    Ok(())
+}
+
+/// Pide al driver su DEVMODE por defecto para esta impresora (respeta
+/// cualquier configuración específica del driver) y le sobreescribe solo
+/// orientación/tamaño de papel si se pidieron — así no perdemos ajustes del
+/// driver que no nos interesa tocar.
+fn build_devmode(
+    printer_name: &str,
+    orientation: Option<&str>,
+    paper_size: Option<&str>,
+) -> Result<Option<DEVMODEW>, String> {
+    if (orientation.is_none() || orientation == Some("auto"))
+        && (paper_size.is_none() || paper_size == Some("auto"))
+    {
+        return Ok(None);
+    }
+
+    let pname = to_wide(printer_name);
+    let mut handle = PRINTER_HANDLE::default();
+    let defaults = PRINTER_DEFAULTSW {
+        pDatatype: PWSTR(std::ptr::null_mut()),
+        pDevMode: std::ptr::null_mut(),
+        DesiredAccess: PRINTER_ALL_ACCESS,
+    };
+    unsafe { OpenPrinterW(PWSTR(pname.as_ptr() as *mut u16), &mut handle, Some(&defaults)) }
+        .map_err(|e| format!("No se pudo abrir la impresora: {e}"))?;
+
+    let mut devmode = DEVMODEW {
+        dmSize: std::mem::size_of::<DEVMODEW>() as u16,
+        ..Default::default()
+    };
+    let result = unsafe {
+        DocumentPropertiesW(
+            None,
+            handle,
+            PCWSTR(pname.as_ptr()),
+            Some(&mut devmode as *mut DEVMODEW),
+            None,
+            DM_OUT_BUFFER.0,
+        )
+    };
+    let _ = unsafe { ClosePrinter(handle) };
+    if result < 0 {
+        return Err("No se pudo leer la configuración de la impresora".to_string());
+    }
+
+    // Los campos de orientación/tamaño viven en esta unión del DEVMODE.
+    let fields = unsafe { &mut devmode.Anonymous1.Anonymous1 };
+
+    if let Some(o) = orientation {
+        if o != "auto" {
+            fields.dmOrientation = if o == "landscape" {
+                DMORIENT_LANDSCAPE as i16
+            } else {
+                DMORIENT_PORTRAIT as i16
+            };
+            devmode.dmFields |= DM_ORIENTATION;
+        }
+    }
+
+    if let Some(size) = paper_size {
+        match size {
+            "a4" => {
+                fields.dmPaperSize = DMPAPER_A4 as i16;
+                devmode.dmFields |= DM_PAPERSIZE;
+            }
+            "carta" => {
+                fields.dmPaperSize = DMPAPER_LETTER as i16;
+                devmode.dmFields |= DM_PAPERSIZE;
+            }
+            "4x6" => {
+                // Décimas de milímetro: 4in=1016, 6in=1524.
+                fields.dmPaperSize = DMPAPER_USER as i16;
+                fields.dmPaperWidth = 1016;
+                fields.dmPaperLength = 1524;
+                devmode.dmFields |= DM_PAPERSIZE | DM_PAPERWIDTH | DM_PAPERLENGTH;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(Some(devmode))
 }
 
 fn get_default_printer_name() -> Result<String, String> {
@@ -245,8 +338,16 @@ fn get_default_printer_name() -> Result<String, String> {
 
 /// Imprime en la impresora predeterminada (no térmica) usando GDI directo,
 /// sin mostrar el diálogo de impresión de Windows — para que los invitados
-/// del evento no vean esa pantalla.
-pub fn print_default_silent(printer_name: Option<String>, png_base64: &str) -> Result<(), String> {
+/// del evento no vean esa pantalla. `orientation`/`paper_size` sobreescriben
+/// el DEVMODE del driver (ver `build_devmode`); `copies` repite la página
+/// dentro del mismo trabajo de impresión.
+pub fn print_default_silent(
+    printer_name: Option<String>,
+    png_base64: &str,
+    copies: Option<u32>,
+    orientation: Option<String>,
+    paper_size: Option<String>,
+) -> Result<(), String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(png_base64)
         .map_err(|e| format!("Imagen base64 inválida: {e}"))?;
@@ -260,9 +361,18 @@ pub fn print_default_silent(printer_name: Option<String>, png_base64: &str) -> R
         None => get_default_printer_name()?,
     };
 
+    let devmode = build_devmode(&printer, orientation.as_deref(), paper_size.as_deref())?;
+
     let driver = to_wide("WINSPOOL");
     let device = to_wide(&printer);
-    let hdc = unsafe { CreateDCW(PWSTR(driver.as_ptr() as *mut u16), PWSTR(device.as_ptr() as *mut u16), PWSTR(std::ptr::null_mut()), None) };
+    let hdc = unsafe {
+        CreateDCW(
+            PWSTR(driver.as_ptr() as *mut u16),
+            PWSTR(device.as_ptr() as *mut u16),
+            PWSTR(std::ptr::null_mut()),
+            devmode.as_ref().map(|d| d as *const DEVMODEW),
+        )
+    };
     if hdc.is_invalid() {
         return Err(format!("No se pudo abrir la impresora \"{printer}\""));
     }
@@ -279,9 +389,6 @@ pub fn print_default_silent(printer_name: Option<String>, png_base64: &str) -> R
 
         if unsafe { StartDocW(hdc, &doc_info) } <= 0 {
             return Err(format!("No se pudo iniciar el trabajo de impresión: {}", Error::from_win32()));
-        }
-        if unsafe { StartPage(hdc) } <= 0 {
-            return Err(format!("No se pudo iniciar la página: {}", Error::from_win32()));
         }
 
         let page_w = unsafe { GetDeviceCaps(Some(hdc), HORZRES) }.max(1);
@@ -322,27 +429,35 @@ pub fn print_default_silent(printer_name: Option<String>, png_base64: &str) -> R
             ..Default::default()
         };
 
-        unsafe {
-            StretchDIBits(
-                hdc,
-                offset_x,
-                offset_y,
-                draw_w,
-                draw_h,
-                0,
-                0,
-                img_w as i32,
-                img_h as i32,
-                Some(dib.as_ptr() as *const core::ffi::c_void),
-                &bmi,
-                DIB_RGB_COLORS,
-                SRCCOPY,
-            );
+        let n = copies.unwrap_or(1).max(1);
+        for _ in 0..n {
+            if unsafe { StartPage(hdc) } <= 0 {
+                return Err(format!("No se pudo iniciar la página: {}", Error::from_win32()));
+            }
+
+            unsafe {
+                StretchDIBits(
+                    hdc,
+                    offset_x,
+                    offset_y,
+                    draw_w,
+                    draw_h,
+                    0,
+                    0,
+                    img_w as i32,
+                    img_h as i32,
+                    Some(dib.as_ptr() as *const core::ffi::c_void),
+                    &bmi,
+                    DIB_RGB_COLORS,
+                    SRCCOPY,
+                );
+            }
+
+            if unsafe { EndPage(hdc) } <= 0 {
+                return Err(format!("No se pudo finalizar la página: {}", Error::from_win32()));
+            }
         }
 
-        if unsafe { EndPage(hdc) } <= 0 {
-            return Err(format!("No se pudo finalizar la página: {}", Error::from_win32()));
-        }
         if unsafe { EndDoc(hdc) } <= 0 {
             return Err(format!("No se pudo finalizar el trabajo de impresión: {}", Error::from_win32()));
         }

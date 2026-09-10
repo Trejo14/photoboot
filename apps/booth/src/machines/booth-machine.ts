@@ -37,7 +37,6 @@ export type BoothEvent =
   | { type: "WIZARD_COMPLETE" }
   | { type: "LOGIN_SUCCESS" }
   | { type: "SELECT_PLAN"; plan: "free" | "pro" | "lifetime" }
-  | { type: "BACK_TO_LOGIN" }
   | { type: "REGISTER_SUCCESS"; device: DeviceInfo }
   | { type: "FORMAT_SELECTED"; format: PhotoFormat }
   | { type: "FRAME_SELECTED"; frame: FrameTemplate }
@@ -66,6 +65,8 @@ export type BoothEvent =
   | { type: "LOGOUT" }
   | { type: "SHOW_EXIT_CONFIRM" }
   | { type: "HIDE_EXIT_CONFIRM" }
+  | { type: "BACK" }
+  | { type: "ABANDON_SESSION" }
   | { type: "GO_ONLINE" }
   | { type: "GO_OFFLINE" }
   | { type: "SET_PENDING"; count: number }
@@ -217,7 +218,7 @@ export const boothMachine = setup({
           { target: "format-selection", guard: "hasDevice" },
           { target: "event-menu" },
         ],
-        BACK_TO_LOGIN: "login",
+        BACK: "login",
       },
     },
 
@@ -243,6 +244,7 @@ export const boothMachine = setup({
           target: "frame-selection",
         },
         SWITCH_EVENT: "event-menu",
+        BACK: "event-menu",
       },
     },
 
@@ -261,6 +263,18 @@ export const boothMachine = setup({
           target: "capture",
         },
         SWITCH_EVENT: "event-menu",
+        BACK: "format-selection",
+        ABANDON_SESSION: {
+          target: "format-selection",
+          actions: assign({
+            frames: [],
+            currentFrameIndex: 0,
+            composedImageUrl: null,
+            composedBlob: null,
+            photoId: null,
+            printerError: null,
+          }),
+        },
       },
     },
 
@@ -292,6 +306,18 @@ export const boothMachine = setup({
           target: "login",
           actions: assign({ device: undefined }),
         },
+        BACK: "frame-selection",
+        ABANDON_SESSION: {
+          target: "format-selection",
+          actions: assign({
+            frames: [],
+            currentFrameIndex: 0,
+            composedImageUrl: null,
+            composedBlob: null,
+            photoId: null,
+            printerError: null,
+          }),
+        },
       },
     },
 
@@ -309,6 +335,18 @@ export const boothMachine = setup({
         COMPOSE_FAILED: {
           actions: assign({
             printerError: ({ event }) => event.error,
+          }),
+        },
+        BACK: "capture",
+        ABANDON_SESSION: {
+          target: "format-selection",
+          actions: assign({
+            frames: [],
+            currentFrameIndex: 0,
+            composedImageUrl: null,
+            composedBlob: null,
+            photoId: null,
+            printerError: null,
           }),
         },
       },
@@ -336,6 +374,17 @@ export const boothMachine = setup({
     "vista-final": {
       on: {
         AUTO_PRINT: "imprimiendo",
+        ABANDON_SESSION: {
+          target: "format-selection",
+          actions: assign({
+            frames: [],
+            currentFrameIndex: 0,
+            composedImageUrl: null,
+            composedBlob: null,
+            photoId: null,
+            printerError: null,
+          }),
+        },
       },
     },
 
@@ -349,12 +398,37 @@ export const boothMachine = setup({
         },
         PRINT_RETRY: "imprimiendo",
         SKIP_PRINT: "agradecimiento",
+        // The print job already sent to the OS spool can't be recalled,
+        // but there's no reason to trap the operator on this screen if
+        // they need to bail (e.g. the wrong image was about to print).
+        ABANDON_SESSION: {
+          target: "format-selection",
+          actions: assign({
+            frames: [],
+            currentFrameIndex: 0,
+            composedImageUrl: null,
+            composedBlob: null,
+            photoId: null,
+            printerError: null,
+          }),
+        },
       },
     },
 
     agradecimiento: {
       on: {
         THANKS_TIMEOUT: "splash",
+        ABANDON_SESSION: {
+          target: "format-selection",
+          actions: assign({
+            frames: [],
+            currentFrameIndex: 0,
+            composedImageUrl: null,
+            composedBlob: null,
+            photoId: null,
+            printerError: null,
+          }),
+        },
       },
     },
 
@@ -368,6 +442,22 @@ export const boothMachine = setup({
           target: "capture",
         },
         HIDE_LICENSE_SCREEN: "capture",
+        BACK: {
+          target: "capture",
+          guard: ({ context }) => !context.licenseBlocked,
+        },
+        ABANDON_SESSION: {
+          target: "format-selection",
+          guard: ({ context }) => !context.licenseBlocked,
+          actions: assign({
+            frames: [],
+            currentFrameIndex: 0,
+            composedImageUrl: null,
+            composedBlob: null,
+            photoId: null,
+            printerError: null,
+          }),
+        },
       },
     },
 
@@ -379,7 +469,11 @@ export const boothMachine = setup({
         },
         LOGOUT: {
           target: "login",
-          actions: assign({ eventFinished: false, eventName: null, device: undefined }),
+          actions: assign({
+            eventFinished: false,
+            eventName: null,
+            device: undefined,
+          }),
         },
       },
     },

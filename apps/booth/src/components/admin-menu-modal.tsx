@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "@photobooth/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+} from "@photobooth/ui";
 import { LogoBirdcam } from "./logo";
 import {
   PowerIcon,
@@ -7,23 +14,32 @@ import {
   LogOutIcon,
   LockIcon,
   SettingsIcon,
+  PrinterIcon,
 } from "./icons";
 import { invoke, listen, exitKioskMode, isFullscreen } from "@/lib/tauri";
 import { getSettings, saveSettings, type Settings } from "@/lib/settings";
+import { PrintSettingsPanel } from "./print-settings-panel";
 
 interface Props {
   onSwitchEvent: () => void;
   onLogout: () => void;
+  onSettingsChange?: (settings: Settings) => void;
+  lastPhoto: { blob: Blob; imageUrl: string } | null;
 }
 
-type View = "pin" | "menu" | "settings";
+type View = "pin" | "menu" | "settings" | "print";
 
 interface CameraDevice {
   deviceId: string;
   label: string;
 }
 
-export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
+export function AdminMenuModal({
+  onSwitchEvent,
+  onLogout,
+  onSettingsChange,
+  lastPhoto,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>("pin");
   const [pin, setPin] = useState("");
@@ -78,6 +94,7 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
     const next = { ...settings, ...patch };
     setSettingsState(next);
     await saveSettings(next);
+    onSettingsChange?.(next);
   }
 
   function handleClose() {
@@ -127,7 +144,9 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
                   maxLength={6}
                 />
               </div>
-              {error && <p className="text-sm text-destructive text-center">{error}</p>}
+              {error && (
+                <p className="text-sm text-destructive text-center">{error}</p>
+              )}
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -137,7 +156,11 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1" disabled={loading || pin.length < 4}>
+                <Button
+                  type="submit"
+                  className="flex-1"
+                  disabled={loading || pin.length < 4}
+                >
                   {loading ? "…" : "Entrar"}
                 </Button>
               </div>
@@ -154,7 +177,9 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
           </CardHeader>
           <CardContent>
             {!settings ? (
-              <p className="text-center text-sm text-muted-foreground">Cargando…</p>
+              <p className="text-center text-sm text-muted-foreground">
+                Cargando…
+              </p>
             ) : (
               <div className="space-y-4">
                 {cameras.length > 1 && (
@@ -180,12 +205,63 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
                 )}
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">PIN de administrador</label>
+                  <label className="text-sm font-medium">
+                    Tiempo de vista final (
+                    {(settings.photoDisplayMs / 1000).toFixed(1)}s)
+                  </label>
+                  <input
+                    type="range"
+                    min={3000}
+                    max={20000}
+                    step={500}
+                    value={settings.photoDisplayMs}
+                    onChange={(e) =>
+                      void updateSettings({
+                        photoDisplayMs: Number(e.target.value),
+                      })
+                    }
+                    className="w-full"
+                  />
+                  <p className="text-xs text-white/40">
+                    Cuánto se muestra la foto compuesta antes de imprimir.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">
+                    Tiempo de pantalla de QR (
+                    {(settings.thanksDisplayMs / 1000).toFixed(1)}s)
+                  </label>
+                  <input
+                    type="range"
+                    min={5000}
+                    max={30000}
+                    step={500}
+                    value={settings.thanksDisplayMs}
+                    onChange={(e) =>
+                      void updateSettings({
+                        thanksDisplayMs: Number(e.target.value),
+                      })
+                    }
+                    className="w-full"
+                  />
+                  <p className="text-xs text-white/40">
+                    Cuánto se muestra el QR de descarga antes de reiniciar para
+                    el siguiente invitado.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">
+                    PIN de administrador
+                  </label>
                   <Input
                     type="password"
                     inputMode="numeric"
                     value={settings.adminPin}
-                    onChange={(e) => void updateSettings({ adminPin: e.target.value })}
+                    onChange={(e) =>
+                      void updateSettings({ adminPin: e.target.value })
+                    }
                     placeholder="1234"
                   />
                 </div>
@@ -211,6 +287,31 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
             )}
           </CardContent>
         </Card>
+      ) : view === "print" ? (
+        <Card className="w-full max-w-sm animate-fade-in">
+          <CardHeader>
+            <div className="flex justify-center">
+              <LogoBirdcam size="6" className="text-white" />
+            </div>
+            <CardTitle className="text-center text-lg">
+              Configuración de impresión
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!settings ? (
+              <p className="text-center text-sm text-muted-foreground">
+                Cargando…
+              </p>
+            ) : (
+              <PrintSettingsPanel
+                settings={settings}
+                onSettingsChange={(patch) => void updateSettings(patch)}
+                lastPhoto={lastPhoto}
+                onBack={() => setView("menu")}
+              />
+            )}
+          </CardContent>
+        </Card>
       ) : (
         <Card className="w-full max-w-sm animate-fade-in">
           <CardHeader>
@@ -231,12 +332,27 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
                   }}
                   className="flex w-full items-center gap-3 rounded-lg border border-[#22d3ee]/20 bg-[#22d3ee]/5 p-3 text-left transition-colors hover:bg-[#22d3ee]/10"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-[#22d3ee]">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5 text-[#22d3ee]"
+                  >
                     <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
                   </svg>
                   <div>
-                    <p className="text-sm font-medium text-[#22d3ee]">Salir del modo cabina</p>
-                    <p className="text-xs text-[#22d3ee]/60">Restaurar ventana con controles</p>
+                    <p className="text-sm font-medium text-[#22d3ee]">
+                      Salir del modo cabina
+                    </p>
+                    <p className="text-xs text-[#22d3ee]/60">
+                      Restaurar ventana con controles
+                    </p>
                   </div>
                 </button>
               )}
@@ -250,8 +366,12 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
               >
                 <CalendarIcon className="h-5 w-5 text-[#a78bfa]" />
                 <div>
-                  <p className="text-sm font-medium text-white">Cambiar de evento</p>
-                  <p className="text-xs text-white/40">Seleccionar otro evento activo</p>
+                  <p className="text-sm font-medium text-white">
+                    Cambiar de evento
+                  </p>
+                  <p className="text-xs text-white/40">
+                    Seleccionar otro evento activo
+                  </p>
                 </div>
               </button>
 
@@ -261,8 +381,26 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
               >
                 <SettingsIcon className="h-5 w-5 text-[#34d399]" />
                 <div>
-                  <p className="text-sm font-medium text-white">Configuración</p>
-                  <p className="text-xs text-white/40">Cámara, impresora y PIN</p>
+                  <p className="text-sm font-medium text-white">
+                    Configuración
+                  </p>
+                  <p className="text-xs text-white/40">Cámara, tiempos y PIN</p>
+                </div>
+              </button>
+
+              <button
+                onClick={async () => {
+                  setView("print");
+                  if (!settings) setSettingsState(await getSettings());
+                }}
+                className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/5 p-3 text-left transition-colors hover:bg-white/10"
+              >
+                <PrinterIcon className="h-5 w-5 text-[#f59e0b]" />
+                <div>
+                  <p className="text-sm font-medium text-white">Impresión</p>
+                  <p className="text-xs text-white/40">
+                    Impresora, orientación, papel y copias
+                  </p>
                 </div>
               </button>
 
@@ -275,8 +413,12 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
               >
                 <LogOutIcon className="h-5 w-5 text-[#f472b6]" />
                 <div>
-                  <p className="text-sm font-medium text-white">Cerrar sesión</p>
-                  <p className="text-xs text-white/40">Volver a la pantalla de login</p>
+                  <p className="text-sm font-medium text-white">
+                    Cerrar sesión
+                  </p>
+                  <p className="text-xs text-white/40">
+                    Volver a la pantalla de login
+                  </p>
                 </div>
               </button>
 
@@ -287,8 +429,12 @@ export function AdminMenuModal({ onSwitchEvent, onLogout }: Props) {
                 >
                   <PowerIcon className="h-5 w-5 text-red-400" />
                   <div>
-                    <p className="text-sm font-medium text-red-300">Cerrar aplicación</p>
-                    <p className="text-xs text-red-400/60">Salir de Birdcam completamente</p>
+                    <p className="text-sm font-medium text-red-300">
+                      Cerrar aplicación
+                    </p>
+                    <p className="text-xs text-red-400/60">
+                      Salir de Birdcam completamente
+                    </p>
                   </div>
                 </button>
               </div>

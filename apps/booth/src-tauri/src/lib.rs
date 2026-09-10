@@ -89,16 +89,20 @@ fn list_printers() -> Result<Vec<print::PrinterInfo>, String> {
 fn print_thermal(
     printer: Option<String>,
     png_base64: String,
+    copies: Option<u32>,
 ) -> Result<(), String> {
-    print::print_thermal(printer, &png_base64)
+    print::print_thermal(printer, &png_base64, copies)
 }
 
 #[tauri::command]
 fn print_default_silent(
     printer: Option<String>,
     png_base64: String,
+    copies: Option<u32>,
+    orientation: Option<String>,
+    paper_size: Option<String>,
 ) -> Result<(), String> {
-    print::print_default_silent(printer, &png_base64)
+    print::print_default_silent(printer, &png_base64, copies, orientation, paper_size)
 }
 
 #[tauri::command]
