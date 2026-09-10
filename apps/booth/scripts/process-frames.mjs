@@ -168,7 +168,6 @@ async function processJob(job) {
     const file = files[idx];
     const srcPath = path.join(job.srcDir, file);
     const img = sharp(srcPath);
-    const meta = await img.metadata();
     const { data, info } = await img
       .clone()
       .raw()
