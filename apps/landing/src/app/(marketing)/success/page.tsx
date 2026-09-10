@@ -18,16 +18,24 @@ export default function SuccessPage() {
             ¡Pago confirmado!
           </h1>
           <p className="mt-6 text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Te enviamos un correo con tu ID de membresía. Ábrelo y pégalo
-            dentro de la app de Birdcam para activar tu plan.
+            Te enviamos un correo con tu ID de membresía. Ábrelo y pégalo dentro
+            de la app de Birdcam para activar tu plan.
           </p>
         </Reveal>
 
-        <Reveal delay={80} className="mt-10 rounded-xl border border-border bg-card p-6 text-left">
+        <Reveal
+          delay={80}
+          className="mt-10 rounded-xl border border-border bg-card p-6 text-left"
+        >
           <ol className="space-y-4 text-sm text-muted-foreground">
-            <li>1. Revisa tu bandeja de entrada (y spam) por el correo de Birdcam.</li>
+            <li>
+              1. Revisa tu bandeja de entrada (y spam) por el correo de Birdcam.
+            </li>
             <li>2. Descarga e instala la app si aún no lo has hecho.</li>
-            <li>3. Abre la app, inicia sesión y pega tu ID de membresía cuando te lo pida.</li>
+            <li>
+              3. Abre la app, inicia sesión y pega tu ID de membresía cuando te
+              lo pida.
+            </li>
           </ol>
         </Reveal>
 
@@ -40,6 +48,34 @@ export default function SuccessPage() {
             Descargar la cabina
             <DownloadIcon className="size-4" />
           </a>
+        </Reveal>
+
+        <Reveal
+          delay={160}
+          className="mt-6 rounded-lg border border-border bg-card p-4 text-left text-sm text-muted-foreground"
+        >
+          <p>
+            El instalador aún no tiene firma digital: si tu navegador lo bloquea
+            como &ldquo;peligroso&rdquo;, elige{" "}
+            <span className="text-white">&ldquo;Conservar&rdquo;</span> en el
+            menú de descargas; si Windows dice{" "}
+            <span className="text-white">
+              &ldquo;Windows protegió tu PC&rdquo;
+            </span>
+            , usa{" "}
+            <span className="text-white">
+              &ldquo;Más información → Ejecutar de todas formas&rdquo;
+            </span>
+            . No es un virus. ¿Problemas? Prueba el{" "}
+            <a
+              href={`${env.NEXT_PUBLIC_DOWNLOAD_URL}/msi`}
+              className="text-white underline"
+              download
+            >
+              instalador .msi
+            </a>
+            .
+          </p>
         </Reveal>
       </div>
     </section>

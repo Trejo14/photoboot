@@ -1,7 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { Readable } from "node:stream";
 
 @Injectable()
 export class S3Service {
@@ -23,7 +29,11 @@ export class S3Service {
     return this.config.get<string>("S3_BUCKET")!;
   }
 
-  async presignPut(key: string, contentType: string, expiresIn = 3600): Promise<string> {
+  async presignPut(
+    key: string,
+    contentType: string,
+    expiresIn = 3600,
+  ): Promise<string> {
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -39,14 +49,29 @@ export class S3Service {
 
   /** Extrae el object key a partir de una URL pública generada por publicUrl(). */
   keyFromPublicUrl(url: string): string | null {
-    const base = this.config.get<string>("S3_PUBLIC_BASE_URL")!.replace(/\/+$/, "");
+    const base = this.config
+      .get<string>("S3_PUBLIC_BASE_URL")!
+      .replace(/\/+$/, "");
     if (!url.startsWith(`${base}/`)) return null;
     return url.slice(base.length + 1);
   }
 
+  async getObjectStream(
+    key: string,
+  ): Promise<{ body: Readable; contentType?: string; contentLength?: number }> {
+    const result = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    return {
+      body: result.Body as Readable,
+      contentType: result.ContentType,
+      contentLength: result.ContentLength,
+    };
+  }
+
   async deleteObject(key: string): Promise<void> {
     await this.client.send(
-      new DeleteObjectCommand({ Bucket: this.bucket, Key: key })
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
     );
   }
 }

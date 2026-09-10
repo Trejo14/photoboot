@@ -10,11 +10,12 @@ export function Download() {
       <div className="mx-auto max-w-6xl px-5 lg:px-8">
         <Reveal className="mx-auto max-w-2xl text-center">
           <h2 className="font-display text-3xl font-bold leading-[1.1] text-white sm:text-4xl">
-            Instala la cabina en tu <span className="text-gradient">computadora</span>
+            Instala la cabina en tu{" "}
+            <span className="text-gradient">computadora</span>
           </h2>
           <p className="mt-4 text-base text-muted-foreground sm:text-lg">
-            Descarga el instalador de Birdcam, completa el inicio de sesión una sola vez
-            y conéctala a tu evento para empezar a capturar.
+            Descarga el instalador de Birdcam, completa el inicio de sesión una
+            sola vez y conéctala a tu evento para empezar a capturar.
           </p>
         </Reveal>
 
@@ -35,7 +36,9 @@ export function Download() {
                         {i + 1}
                       </span>
                       <div>
-                        <h3 className="text-lg font-semibold text-white">{step.title}</h3>
+                        <h3 className="text-lg font-semibold text-white">
+                          {step.title}
+                        </h3>
                         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                           {step.description}
                         </p>
@@ -62,12 +65,50 @@ export function Download() {
 
                 <div className="mt-4 flex gap-3 rounded-lg border border-border bg-white/5 p-4">
                   <InfoIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                  <p className="text-sm leading-relaxed text-muted-foreground">
-                    Windows puede mostrar un aviso de <span className="text-white">SmartScreen</span> porque el
-                    instalador es nuevo y aún no firmado digitalmente. Es normal: haz clic en{" "}
-                    <span className="text-white">&ldquo;Más información&rdquo;</span> y luego en{" "}
-                    <span className="text-white">&ldquo;Ejecutar de todas formas&rdquo;</span> para continuar.
-                  </p>
+                  <div className="text-sm leading-relaxed text-muted-foreground">
+                    <p>
+                      El instalador aún no tiene firma digital, así que el
+                      navegador o Windows pueden mostrar un aviso de seguridad —
+                      es normal, no es un virus:
+                    </p>
+                    <ul className="mt-2 list-disc space-y-1 pl-4">
+                      <li>
+                        Si el navegador bloquea la descarga como
+                        &ldquo;peligrosa&rdquo;, abre el menú de descargas y
+                        elige{" "}
+                        <span className="text-white">
+                          &ldquo;Conservar&rdquo;
+                        </span>
+                        .
+                      </li>
+                      <li>
+                        Si Windows dice{" "}
+                        <span className="text-white">
+                          &ldquo;Windows protegió tu PC&rdquo;
+                        </span>{" "}
+                        al abrirlo, haz clic en{" "}
+                        <span className="text-white">
+                          &ldquo;Más información&rdquo;
+                        </span>{" "}
+                        y luego{" "}
+                        <span className="text-white">
+                          &ldquo;Ejecutar de todas formas&rdquo;
+                        </span>
+                        .
+                      </li>
+                      <li>
+                        ¿Sigue sin dejarte? Prueba el{" "}
+                        <a
+                          href={`${env.NEXT_PUBLIC_DOWNLOAD_URL}/msi`}
+                          className="text-white underline"
+                          download
+                        >
+                          instalador alternativo (.msi)
+                        </a>
+                        .
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
