@@ -6,6 +6,7 @@ import type { FrameTemplate } from "@/lib/frame-templates";
 
 export interface BoothContext {
   device: DeviceInfo | undefined;
+  userEmail: string | null;
   license: LicenseInfo | undefined;
   licenseBlocked: boolean;
   eventFinished: boolean;
@@ -33,10 +34,12 @@ export type BoothEvent =
       license?: LicenseInfo;
       eventFinished?: boolean;
       eventName?: string | null;
+      authenticated?: boolean;
+      userEmail?: string | null;
     }
   | { type: "WIZARD_COMPLETE" }
-  | { type: "LOGIN_SUCCESS" }
-  | { type: "SELECT_PLAN"; plan: "free" | "pro" | "lifetime" }
+  | { type: "LOGIN_SUCCESS"; email: string }
+  | { type: "SELECT_PLAN"; plan: "free" | "pro" | "lifetime"; email?: string }
   | { type: "REGISTER_SUCCESS"; device: DeviceInfo }
   | { type: "FORMAT_SELECTED"; format: PhotoFormat }
   | { type: "FRAME_SELECTED"; frame: FrameTemplate }
@@ -104,6 +107,7 @@ export const boothMachine = setup({
   initial: "splash",
   context: {
     device: undefined,
+    userEmail: null,
     license: undefined,
     licenseBlocked: false,
     eventFinished: false,
@@ -161,22 +165,45 @@ export const boothMachine = setup({
         BOOT_COMPLETE: [
           {
             target: "event-finished",
+            // Ojo: en el primer BOOT_COMPLETE de la vida de esta máquina
+            // (cada vez que se abre la app) `context.device` todavía está
+            // vacío — el dato real viene en el evento, no en el contexto
+            // previo. Los guards con nombre (hasDevice/noDevice) de más
+            // abajo sí pueden usar context.device porque para cuando se
+            // disparan, ya quedó asignado aquí.
             guard: ({ event }) => !!event.device && !!event.eventFinished,
             actions: assign({
               device: ({ event }) => event.device,
               license: ({ event }) => event.license,
               eventFinished: true,
               eventName: ({ event }) => event.eventName ?? null,
+              userEmail: ({ event }) => event.userEmail ?? null,
             }),
           },
           {
             target: "format-selection",
-            guard: "hasDevice",
+            guard: ({ event }) => !!event.device,
             actions: assign({
               device: ({ event }) => event.device,
               license: ({ event }) => event.license,
               eventFinished: false,
               eventName: null,
+              userEmail: ({ event }) => event.userEmail ?? null,
+            }),
+          },
+          {
+            // Sin dispositivo registrado pero con una sesión de operador
+            // válida (token guardado) — nos saltamos el login y vamos
+            // directo a elegir evento, en vez de pedir credenciales de
+            // nuevo cada vez que se abre la app.
+            target: "event-menu",
+            guard: ({ event }) => !event.device && !!event.authenticated,
+            actions: assign({
+              device: undefined,
+              license: ({ event }) => event.license,
+              eventFinished: false,
+              eventName: null,
+              userEmail: ({ event }) => event.userEmail ?? null,
             }),
           },
           {
@@ -186,6 +213,7 @@ export const boothMachine = setup({
               license: ({ event }) => event.license,
               eventFinished: false,
               eventName: null,
+              userEmail: ({ event }) => event.userEmail ?? null,
             }),
           },
         ],
@@ -202,12 +230,30 @@ export const boothMachine = setup({
     login: {
       on: {
         LOGIN_SUCCESS: [
-          { target: "format-selection", guard: "hasDevice" },
-          { target: "event-menu" },
+          {
+            target: "format-selection",
+            guard: "hasDevice",
+            actions: assign({ userEmail: ({ event }) => event.email }),
+          },
+          {
+            target: "event-menu",
+            actions: assign({ userEmail: ({ event }) => event.email }),
+          },
         ],
         SELECT_PLAN: [
-          { target: "format-selection", guard: "hasDevice" },
-          { target: "event-menu" },
+          {
+            target: "format-selection",
+            guard: "hasDevice",
+            actions: assign({
+              userEmail: ({ event }) => event.email ?? null,
+            }),
+          },
+          {
+            target: "event-menu",
+            actions: assign({
+              userEmail: ({ event }) => event.email ?? null,
+            }),
+          },
         ],
       },
     },
@@ -304,7 +350,7 @@ export const boothMachine = setup({
         SWITCH_EVENT: "event-menu",
         LOGOUT: {
           target: "login",
-          actions: assign({ device: undefined }),
+          actions: assign({ device: undefined, userEmail: null }),
         },
         BACK: "frame-selection",
         ABANDON_SESSION: {
@@ -473,6 +519,7 @@ export const boothMachine = setup({
             eventFinished: false,
             eventName: null,
             device: undefined,
+            userEmail: null,
           }),
         },
       },

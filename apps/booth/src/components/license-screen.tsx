@@ -12,11 +12,17 @@ import { activateLicense, type LicenseInfo } from "@/lib/license";
 
 interface Props {
   deviceToken: string;
+  email: string | null;
   onActivated: (license: LicenseInfo) => void;
   onCancel?: () => void;
 }
 
-export function LicenseScreen({ deviceToken, onActivated, onCancel }: Props) {
+export function LicenseScreen({
+  deviceToken,
+  email,
+  onActivated,
+  onCancel,
+}: Props) {
   const [licenseKey, setLicenseKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -26,10 +32,16 @@ export function LicenseScreen({ deviceToken, onActivated, onCancel }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const license = await activateLicense(deviceToken, licenseKey.trim());
+      const license = await activateLicense(
+        deviceToken,
+        licenseKey.trim(),
+        email,
+      );
       onActivated(license);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo activar la licencia");
+      setError(
+        err instanceof Error ? err.message : "No se pudo activar la licencia",
+      );
       setLoading(false);
     }
   }
@@ -40,8 +52,8 @@ export function LicenseScreen({ deviceToken, onActivated, onCancel }: Props) {
         <CardHeader>
           <CardTitle className="text-center">Activar licencia</CardTitle>
           <CardDescription className="text-center">
-            Ingresa la clave de licencia Pro o Lifetime para desbloquear todas las
-            funciones.
+            Ingresa la clave de licencia Pro o Lifetime para desbloquear todas
+            las funciones.
           </CardDescription>
         </CardHeader>
         <CardContent>

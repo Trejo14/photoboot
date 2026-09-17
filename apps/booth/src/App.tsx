@@ -14,7 +14,7 @@ import { enqueuePhoto, flushPending, listPending } from "@/lib/queue";
 import { getLicense, isLicenseExpired, validateLicense } from "@/lib/license";
 import { getEffectivePlan } from "@/lib/plan";
 import { applyTrialWatermark } from "@/lib/watermark";
-import { logout } from "@/lib/api";
+import { logout, getAuthToken, setAuthToken, getProfile } from "@/lib/api";
 import { markSetupComplete } from "@/lib/setup-state";
 import { getSettings, type Settings } from "@/lib/settings";
 import { enterKioskMode, exitKioskMode, listen } from "@/lib/tauri";
@@ -52,7 +52,23 @@ async function runBootSequence(send: (event: any) => void) {
   send({ type: "SET_SPLASH", progress: 40, text: STATUS_MESSAGES[1] ?? "" });
   await new Promise((r) => setTimeout(r, 200));
 
-  const lic = await getLicense();
+  // Un token guardado no significa que siga siendo válido (pudo expirar,
+  // o la cuenta pudo revocarse) — se confirma contra el servidor antes de
+  // confiar en él para saltarse el login o para saber de quién es la
+  // licencia local que hay que leer. Si el token ya no sirve, se limpia
+  // para no repetir esta llamada en cada arranque.
+  let authenticatedEmail: string | null = null;
+  const token = await getAuthToken();
+  if (token) {
+    try {
+      const profile = await getProfile();
+      authenticatedEmail = profile.email;
+    } catch {
+      await setAuthToken(null);
+    }
+  }
+
+  const lic = await getLicense(authenticatedEmail);
   send({ type: "SET_SPLASH", progress: 60, text: STATUS_MESSAGES[2] ?? "" });
   await new Promise((r) => setTimeout(r, 200));
 
@@ -60,9 +76,9 @@ async function runBootSequence(send: (event: any) => void) {
     send({ type: "LICENSE_BLOCKED" });
   }
   if (d && lic && navigator.onLine) {
-    void validateLicense(d.deviceToken)
+    void validateLicense(d.deviceToken, authenticatedEmail)
       .then(async () => {
-        const freshLic = await getLicense();
+        const freshLic = await getLicense(authenticatedEmail);
         if (freshLic) send({ type: "LICENSE_ACTIVATED", license: freshLic });
       })
       .catch(() => undefined);
@@ -94,6 +110,8 @@ async function runBootSequence(send: (event: any) => void) {
     license: lic,
     eventFinished,
     eventName,
+    authenticated: !!authenticatedEmail,
+    userEmail: authenticatedEmail,
   });
 }
 
@@ -290,8 +308,8 @@ export function App() {
     send({ type: "WIZARD_COMPLETE" });
   }
 
-  async function handleLoginSuccess() {
-    send({ type: "LOGIN_SUCCESS" });
+  async function handleLoginSuccess(email: string) {
+    send({ type: "LOGIN_SUCCESS", email });
   }
 
   async function handleRegister(info: { eventId: string; boothName: string }) {
@@ -468,6 +486,7 @@ export function App() {
         <div className="fixed inset-0 z-50">
           <LicenseScreen
             deviceToken={state.context.device.deviceToken}
+            email={state.context.userEmail}
             onActivated={(license) => {
               send({ type: "LICENSE_ACTIVATED", license });
               setLicenseOverlayOpen(false);
@@ -497,8 +516,8 @@ export function App() {
       return (
         <AdminLoginScreen
           onAuthenticated={handleLoginSuccess}
-          onSelectPlan={(plan) => {
-            send({ type: "SELECT_PLAN", plan });
+          onSelectPlan={(plan, email) => {
+            send({ type: "SELECT_PLAN", plan, email });
           }}
         />
       );
@@ -540,6 +559,7 @@ export function App() {
         <FrameSelectionScreen
           format={state.context.format}
           license={state.context.license}
+          email={state.context.userEmail}
           onSelect={(frame) => send({ type: "FRAME_SELECTED", frame })}
           onSkip={() => send({ type: "SKIP_FRAME" })}
           onOpenLicense={() => setLicenseOverlayOpen(true)}
@@ -649,6 +669,7 @@ export function App() {
       return (
         <LicenseScreen
           deviceToken={device.deviceToken}
+          email={state.context.userEmail}
           onActivated={(lic) =>
             send({ type: "LICENSE_ACTIVATED", license: lic })
           }

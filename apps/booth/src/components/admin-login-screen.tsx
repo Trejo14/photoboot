@@ -1,26 +1,54 @@
 import { useState } from "react";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "@photobooth/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+} from "@photobooth/ui";
 import { LogoBirdcam } from "./logo";
 import { AuthHeroPanel } from "./auth-hero-panel";
-import { MailIcon, CheckCircleIcon, ExclamationIcon, LockIcon, UserIcon } from "./icons";
-import { login, register, requestCode, verifyCode, setAuthToken } from "@/lib/api";
+import {
+  MailIcon,
+  CheckCircleIcon,
+  ExclamationIcon,
+  LockIcon,
+  UserIcon,
+} from "./icons";
+import {
+  login,
+  register,
+  requestCode,
+  verifyCode,
+  setAuthToken,
+} from "@/lib/api";
 
 interface Props {
-  onAuthenticated: () => void;
-  onSelectPlan?: (plan: "free" | "pro" | "lifetime") => void;
+  onAuthenticated: (email: string) => void;
+  onSelectPlan?: (plan: "free" | "pro" | "lifetime", email: string) => void;
 }
 
 type Tab = "login" | "register";
 type LoginMode = "password" | "otp";
 
 function mapError(msg: string): string {
-  if (msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("networkerror")) {
+  if (
+    msg.toLowerCase().includes("failed to fetch") ||
+    msg.toLowerCase().includes("networkerror")
+  ) {
     return "No pudimos conectar con el servidor. Verifica tu conexión e intenta de nuevo.";
   }
-  if (msg.toLowerCase().includes("401") || msg.toLowerCase().includes("unauthorized")) {
+  if (
+    msg.toLowerCase().includes("401") ||
+    msg.toLowerCase().includes("unauthorized")
+  ) {
     return "Credenciales incorrectas. Verifica tu correo y contraseña.";
   }
-  if (msg.toLowerCase().includes("409") || msg.toLowerCase().includes("conflict")) {
+  if (
+    msg.toLowerCase().includes("409") ||
+    msg.toLowerCase().includes("conflict")
+  ) {
     return "Ya existe una cuenta con ese correo electrónico.";
   }
   return msg;
@@ -62,9 +90,11 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
     setLastAction(() => () => handleLogin(e));
     try {
       await login(email.trim(), password);
-      onAuthenticated();
+      onAuthenticated(email.trim());
     } catch (err) {
-      setError(mapError(err instanceof Error ? err.message : "Credenciales inválidas"));
+      setError(
+        mapError(err instanceof Error ? err.message : "Credenciales inválidas"),
+      );
     } finally {
       setLoading(false);
     }
@@ -81,13 +111,17 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
       setRegistered(true);
       setTimeout(() => {
         if (onSelectPlan) {
-          onSelectPlan("free");
+          onSelectPlan("free", email.trim());
         } else {
-          onAuthenticated();
+          onAuthenticated(email.trim());
         }
       }, 1200);
     } catch (err) {
-      setError(mapError(err instanceof Error ? err.message : "No se pudo crear la cuenta"));
+      setError(
+        mapError(
+          err instanceof Error ? err.message : "No se pudo crear la cuenta",
+        ),
+      );
       setLoading(false);
     }
   }
@@ -102,7 +136,11 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
       setOtpStep("code");
       startResendCooldown();
     } catch (err) {
-      setError(mapError(err instanceof Error ? err.message : "No se pudo enviar el código"));
+      setError(
+        mapError(
+          err instanceof Error ? err.message : "No se pudo enviar el código",
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -115,9 +153,11 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
     setLastAction(() => () => handleVerifyOtp(e));
     try {
       await verifyCode(email.trim(), code.trim());
-      onAuthenticated();
+      onAuthenticated(email.trim());
     } catch (err) {
-      setError(mapError(err instanceof Error ? err.message : "Código inválido"));
+      setError(
+        mapError(err instanceof Error ? err.message : "Código inválido"),
+      );
       setLoading(false);
     }
   }
@@ -131,7 +171,11 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
       await requestCode(email.trim());
       startResendCooldown();
     } catch (err) {
-      setError(mapError(err instanceof Error ? err.message : "No se pudo reenviar el código"));
+      setError(
+        mapError(
+          err instanceof Error ? err.message : "No se pudo reenviar el código",
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -158,11 +202,44 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#0a0a0f] p-4">
       {/* Floating blobs */}
-      <div className="blob blob-1" style={{ width: 300, height: 300, background: "#a78bfa", top: "10%", left: "10%", animation: "float 15s ease-in-out infinite alternate" }} />
-      <div className="blob blob-2" style={{ width: 250, height: 250, background: "#f472b6", bottom: "15%", right: "10%", animation: "float-reverse 18s ease-in-out infinite alternate" }} />
-      <div className="blob blob-3" style={{ width: 200, height: 200, background: "#22d3ee", top: "50%", left: "60%", animation: "float 20s ease-in-out infinite alternate" }} />
+      <div
+        className="blob blob-1"
+        style={{
+          width: 300,
+          height: 300,
+          background: "#a78bfa",
+          top: "10%",
+          left: "10%",
+          animation: "float 15s ease-in-out infinite alternate",
+        }}
+      />
+      <div
+        className="blob blob-2"
+        style={{
+          width: 250,
+          height: 250,
+          background: "#f472b6",
+          bottom: "15%",
+          right: "10%",
+          animation: "float-reverse 18s ease-in-out infinite alternate",
+        }}
+      />
+      <div
+        className="blob blob-3"
+        style={{
+          width: 200,
+          height: 200,
+          background: "#22d3ee",
+          top: "50%",
+          left: "60%",
+          animation: "float 20s ease-in-out infinite alternate",
+        }}
+      />
 
-      <div className="relative z-10 flex w-full max-w-4xl overflow-hidden rounded-2xl animate-fade-in" style={{ minHeight: 520 }}>
+      <div
+        className="relative z-10 flex w-full max-w-4xl overflow-hidden rounded-2xl animate-fade-in"
+        style={{ minHeight: 520 }}
+      >
         {/* Card */}
         <Card className="glass w-full max-w-sm shrink-0 border-0 md:rounded-r-none">
           <CardHeader>
@@ -178,7 +255,10 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
             <div className="mb-4 flex rounded-lg bg-muted p-0.5">
               <button
                 type="button"
-                onClick={() => { setTab("login"); resetAll(); }}
+                onClick={() => {
+                  setTab("login");
+                  resetAll();
+                }}
                 className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                   tab === "login"
                     ? "bg-background text-foreground shadow-sm"
@@ -189,7 +269,10 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
               </button>
               <button
                 type="button"
-                onClick={() => { setTab("register"); resetAll(); }}
+                onClick={() => {
+                  setTab("register");
+                  resetAll();
+                }}
                 className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                   tab === "register"
                     ? "bg-background text-foreground shadow-sm"
@@ -215,7 +298,10 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
                         autoFocus
                         placeholder="tu@ejemplo.com"
                         value={email}
-                        onChange={(e) => { setEmail(e.target.value); setError(null); }}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setError(null);
+                        }}
                         className="input-birdcam"
                         required
                       />
@@ -229,7 +315,10 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
                         type="password"
                         placeholder="••••••••"
                         value={password}
-                        onChange={(e) => { setPassword(e.target.value); setError(null); }}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setError(null);
+                        }}
                         className="input-birdcam"
                         required
                         minLength={8}
@@ -252,154 +341,195 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
                         </div>
                       </div>
                     )}
-                    <Button type="submit" className="w-full gradient-birdcam hover:brightness-110 transition-all" disabled={loading || !email.trim() || !password}>
+                    <Button
+                      type="submit"
+                      className="w-full gradient-birdcam hover:brightness-110 transition-all"
+                      disabled={loading || !email.trim() || !password}
+                    >
                       {loading ? (
                         <span className="flex items-center gap-2">
                           <span className="h-4 w-4 animate-spinner rounded-full border-2 border-white/30 border-t-white" />
                           Entrando…
                         </span>
-                      ) : "Iniciar sesión"}
+                      ) : (
+                        "Iniciar sesión"
+                      )}
                     </Button>
                     <button
                       type="button"
-                      onClick={() => { setMode("otp"); setError(null); }}
+                      onClick={() => {
+                        setMode("otp");
+                        setError(null);
+                      }}
                       className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
                     >
                       ¿No recuerdas tu contraseña? Usa un código por email
                     </button>
                   </form>
+                ) : /* OTP Mode */
+                otpStep === "email" ? (
+                  <form onSubmit={handleRequestOtp} className="space-y-4">
+                    <p className="text-sm text-muted-foreground text-center">
+                      Ingresa tu correo para recibir un código de verificación.
+                    </p>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium flex items-center gap-2">
+                        <MailIcon className="h-4 w-4 text-muted-foreground" />
+                        Correo electrónico
+                      </label>
+                      <Input
+                        type="email"
+                        autoFocus
+                        placeholder="tu@ejemplo.com"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setError(null);
+                        }}
+                        className="input-birdcam"
+                        required
+                      />
+                    </div>
+                    {error && (
+                      <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-2.5">
+                        <ExclamationIcon className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs text-red-300/80">{error}</p>
+                          {lastAction && (
+                            <button
+                              type="button"
+                              onClick={handleRetry}
+                              className="mt-1 text-xs font-medium text-red-400 underline underline-offset-2 hover:text-red-300"
+                            >
+                              Reintentar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <Button
+                      type="submit"
+                      className="w-full gradient-birdcam hover:brightness-110 transition-all"
+                      disabled={loading || !email.trim()}
+                    >
+                      {loading ? (
+                        <span className="flex items-center gap-2">
+                          <span className="h-4 w-4 animate-spinner rounded-full border-2 border-white/30 border-t-white" />
+                          Enviando…
+                        </span>
+                      ) : (
+                        "Enviar código"
+                      )}
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("password");
+                        setError(null);
+                      }}
+                      className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Volver a contraseña
+                    </button>
+                  </form>
                 ) : (
-                  /* OTP Mode */
-                  otpStep === "email" ? (
-                    <form onSubmit={handleRequestOtp} className="space-y-4">
+                  <form onSubmit={handleVerifyOtp} className="space-y-4">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#a78bfa]/10">
+                        <CheckCircleIcon className="h-6 w-6 text-[#a78bfa]" />
+                      </div>
                       <p className="text-sm text-muted-foreground text-center">
-                        Ingresa tu correo para recibir un código de verificación.
+                        Enviamos un código a
                       </p>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium flex items-center gap-2">
-                          <MailIcon className="h-4 w-4 text-muted-foreground" />
-                          Correo electrónico
-                        </label>
-                        <Input
-                          type="email"
-                          autoFocus
-                          placeholder="tu@ejemplo.com"
-                          value={email}
-                          onChange={(e) => { setEmail(e.target.value); setError(null); }}
-                          className="input-birdcam"
-                          required
-                        />
-                      </div>
-                      {error && (
-                        <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-2.5">
-                          <ExclamationIcon className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-xs text-red-300/80">{error}</p>
-                            {lastAction && (
-                              <button
-                                type="button"
-                                onClick={handleRetry}
-                                className="mt-1 text-xs font-medium text-red-400 underline underline-offset-2 hover:text-red-300"
-                              >
-                                Reintentar
-                              </button>
-                            )}
-                          </div>
+                      <p className="text-sm font-medium text-foreground">
+                        {email}
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">
+                        Código de verificación
+                      </label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        autoFocus
+                        placeholder="000000"
+                        className="input-birdcam text-center text-lg tracking-[0.5em]"
+                        value={code}
+                        onChange={(e) => {
+                          setCode(e.target.value.replace(/\D/g, ""));
+                          setError(null);
+                        }}
+                        maxLength={6}
+                      />
+                    </div>
+                    {error && (
+                      <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-2.5">
+                        <ExclamationIcon className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs text-red-300/80">{error}</p>
+                          {lastAction && (
+                            <button
+                              type="button"
+                              onClick={handleRetry}
+                              className="mt-1 text-xs font-medium text-red-400 underline underline-offset-2 hover:text-red-300"
+                            >
+                              Reintentar
+                            </button>
+                          )}
                         </div>
+                      </div>
+                    )}
+                    <Button
+                      type="submit"
+                      className="w-full gradient-birdcam hover:brightness-110 transition-all"
+                      disabled={loading || code.length < 6}
+                    >
+                      {loading ? (
+                        <span className="flex items-center gap-2">
+                          <span className="h-4 w-4 animate-spinner rounded-full border-2 border-white/30 border-t-white" />
+                          Verificando…
+                        </span>
+                      ) : (
+                        "Iniciar sesión"
                       )}
-                      <Button type="submit" className="w-full gradient-birdcam hover:brightness-110 transition-all" disabled={loading || !email.trim()}>
-                        {loading ? (
-                          <span className="flex items-center gap-2">
-                            <span className="h-4 w-4 animate-spinner rounded-full border-2 border-white/30 border-t-white" />
-                            Enviando…
-                          </span>
-                        ) : "Enviar código"}
-                      </Button>
-                      <button
+                    </Button>
+                    <div className="flex gap-2">
+                      <Button
                         type="button"
-                        onClick={() => { setMode("password"); setError(null); }}
-                        className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+                        variant="secondary"
+                        className="flex-1"
+                        onClick={() => {
+                          setOtpStep("email");
+                          setCode("");
+                          setError(null);
+                        }}
                       >
-                        Volver a contraseña
-                      </button>
-                    </form>
-                  ) : (
-                    <form onSubmit={handleVerifyOtp} className="space-y-4">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#a78bfa]/10">
-                          <CheckCircleIcon className="h-6 w-6 text-[#a78bfa]" />
-                        </div>
-                        <p className="text-sm text-muted-foreground text-center">
-                          Enviamos un código a
-                        </p>
-                        <p className="text-sm font-medium text-foreground">{email}</p>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Código de verificación</label>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          autoFocus
-                          placeholder="000000"
-                          className="input-birdcam text-center text-lg tracking-[0.5em]"
-                          value={code}
-                          onChange={(e) => { setCode(e.target.value.replace(/\D/g, "")); setError(null); }}
-                          maxLength={6}
-                        />
-                      </div>
-                      {error && (
-                        <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-2.5">
-                          <ExclamationIcon className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-xs text-red-300/80">{error}</p>
-                            {lastAction && (
-                              <button
-                                type="button"
-                                onClick={handleRetry}
-                                className="mt-1 text-xs font-medium text-red-400 underline underline-offset-2 hover:text-red-300"
-                              >
-                                Reintentar
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      <Button type="submit" className="w-full gradient-birdcam hover:brightness-110 transition-all" disabled={loading || code.length < 6}>
-                        {loading ? (
-                          <span className="flex items-center gap-2">
-                            <span className="h-4 w-4 animate-spinner rounded-full border-2 border-white/30 border-t-white" />
-                            Verificando…
-                          </span>
-                        ) : "Iniciar sesión"}
+                        Cambiar email
                       </Button>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="flex-1"
-                          onClick={() => { setOtpStep("email"); setCode(""); setError(null); }}
-                        >
-                          Cambiar email
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="flex-1"
-                          onClick={handleResendOtp}
-                          disabled={resendCooldown > 0 || loading}
-                        >
-                          {resendCooldown > 0 ? `Reenviar (${resendCooldown}s)` : "Reenviar código"}
-                        </Button>
-                      </div>
-                    </form>
-                  )
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="flex-1"
+                        onClick={handleResendOtp}
+                        disabled={resendCooldown > 0 || loading}
+                      >
+                        {resendCooldown > 0
+                          ? `Reenviar (${resendCooldown}s)`
+                          : "Reenviar código"}
+                      </Button>
+                    </div>
+                  </form>
                 )}
               </div>
             )}
 
             {/* REGISTER TAB */}
             {tab === "register" && registered && (
-              <div key="register-success" className="flex flex-col items-center gap-3 py-6 animate-fade-in">
+              <div
+                key="register-success"
+                className="flex flex-col items-center gap-3 py-6 animate-fade-in"
+              >
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10">
                   <CheckCircleIcon className="h-8 w-8 text-green-400" />
                 </div>
@@ -421,7 +551,10 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
                       autoFocus
                       placeholder="Tu nombre"
                       value={name}
-                      onChange={(e) => { setName(e.target.value); setError(null); }}
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        setError(null);
+                      }}
                       className="input-birdcam"
                       required
                     />
@@ -435,7 +568,10 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
                       type="email"
                       placeholder="tu@ejemplo.com"
                       value={email}
-                      onChange={(e) => { setEmail(e.target.value); setError(null); }}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setError(null);
+                      }}
                       className="input-birdcam"
                       required
                     />
@@ -449,7 +585,10 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
                       type="password"
                       placeholder="Mínimo 8 caracteres"
                       value={password}
-                      onChange={(e) => { setPassword(e.target.value); setError(null); }}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setError(null);
+                      }}
                       className="input-birdcam"
                       required
                       minLength={8}
@@ -472,13 +611,21 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
                       </div>
                     </div>
                   )}
-                  <Button type="submit" className="w-full gradient-birdcam hover:brightness-110 transition-all" disabled={loading || !name.trim() || !email.trim() || !password}>
+                  <Button
+                    type="submit"
+                    className="w-full gradient-birdcam hover:brightness-110 transition-all"
+                    disabled={
+                      loading || !name.trim() || !email.trim() || !password
+                    }
+                  >
                     {loading ? (
                       <span className="flex items-center gap-2">
                         <span className="h-4 w-4 animate-spinner rounded-full border-2 border-white/30 border-t-white" />
                         Creando cuenta…
                       </span>
-                    ) : "Crear cuenta"}
+                    ) : (
+                      "Crear cuenta"
+                    )}
                   </Button>
                   <p className="text-xs text-muted-foreground text-center">
                     Al crear cuenta seleccionarás tu plan en el siguiente paso.
