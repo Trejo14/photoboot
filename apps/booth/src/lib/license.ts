@@ -176,5 +176,12 @@ export function isLicenseExpired(license: LicenseInfo | undefined): boolean {
   if (license.status === "revoked") return true;
   if (license.expiresAt && license.expiresAt <= Date.now()) return true;
   if (Date.now() - license.lastValidatedAt > GRACE_MS) return true;
+  // El reloj local retrocedió respecto a la última vez que se confirmó
+  // contra el servidor — la forma más común de "hacer trampa" con la
+  // fecha del sistema para seguir usando una licencia vencida. Esto no
+  // sustituye la validación real: el servidor siempre usa SU propio
+  // reloj en /licenses/validate, así que en línea la trampa no sirve de
+  // nada de todas formas; esto solo cubre el caso sin conexión.
+  if (Date.now() < license.lastValidatedAt) return true;
   return false;
 }

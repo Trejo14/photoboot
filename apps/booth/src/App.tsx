@@ -283,7 +283,16 @@ export function App() {
             copies: settings?.printCopies,
             orientation: settings?.printOrientation,
             paperSize: settings?.printPaperSize,
+            customWidthMm: settings?.customPaperWidthMm,
+            customHeightMm: settings?.customPaperHeightMm,
           });
+          if (mode === "cancelled") {
+            // No es un error real — el operador cerró el diálogo sin
+            // imprimir. Se reusa la pantalla de error (con reintentar/
+            // omitir) en vez de avanzar como si hubiera impreso.
+            send({ type: "PRINT_FAILED", error: "Impresión cancelada." });
+            return;
+          }
           if (mode === "thermal") {
             setPrintFeedback("Impreso en impresora térmica");
             await new Promise((r) => setTimeout(r, 1200));
@@ -671,6 +680,7 @@ export function App() {
         <LicenseScreen
           deviceToken={device.deviceToken}
           email={state.context.userEmail}
+          blocked={state.context.licenseBlocked}
           onActivated={(lic) =>
             send({ type: "LICENSE_ACTIVATED", license: lic })
           }

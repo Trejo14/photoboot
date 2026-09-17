@@ -53,6 +53,7 @@ pub fn run() {
             list_printers,
             print_thermal,
             print_default_silent,
+            print_with_native_dialog,
             emit_admin_unlock,
             get_device_id,
             open_url
@@ -100,9 +101,21 @@ fn print_default_silent(
     png_base64: String,
     copies: Option<u32>,
     orientation: Option<String>,
-    paper_size: Option<String>,
+    width_mm: Option<f64>,
+    height_mm: Option<f64>,
 ) -> Result<(), String> {
-    print::print_default_silent(printer, &png_base64, copies, orientation, paper_size)
+    print::print_default_silent(printer, &png_base64, copies, orientation, width_mm, height_mm)
+}
+
+#[tauri::command]
+fn print_with_native_dialog(
+    png_base64: String,
+    preferred_printer: Option<String>,
+    orientation: Option<String>,
+    width_mm: Option<f64>,
+    height_mm: Option<f64>,
+) -> Result<print::PrintDialogOutcome, String> {
+    print::print_with_native_dialog(&png_base64, preferred_printer, orientation, width_mm, height_mm)
 }
 
 #[tauri::command]

@@ -1,11 +1,11 @@
 use base64::Engine;
 use serde::Serialize;
 use windows::core::{Error, PCWSTR, PWSTR};
+use windows::Win32::Foundation::{GlobalFree, HGLOBAL};
 use windows::Win32::Graphics::Gdi::{
     CreateDCW, DeleteDC, GetDeviceCaps, StretchDIBits, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
-    DEVMODEW, DIB_RGB_COLORS, DMORIENT_LANDSCAPE, DMORIENT_PORTRAIT, DMPAPER_A4, DMPAPER_LETTER,
-    DMPAPER_USER, DM_ORIENTATION, DM_PAPERLENGTH, DM_PAPERSIZE, DM_PAPERWIDTH, DM_OUT_BUFFER,
-    HORZRES, SRCCOPY, VERTRES,
+    DEVMODEW, DIB_RGB_COLORS, DMORIENT_LANDSCAPE, DMORIENT_PORTRAIT, DMPAPER_USER, DM_ORIENTATION,
+    DM_OUT_BUFFER, DM_PAPERLENGTH, DM_PAPERSIZE, DM_PAPERWIDTH, HORZRES, SRCCOPY, VERTRES,
 };
 use windows::Win32::Graphics::Printing::{
     ClosePrinter, DocumentPropertiesW, EndDocPrinter, EndPagePrinter, EnumPrintersW,
@@ -14,6 +14,10 @@ use windows::Win32::Graphics::Printing::{
     PRINTER_INFO_2W,
 };
 use windows::Win32::Storage::Xps::{EndDoc, EndPage, StartDocW, StartPage, DOCINFOW};
+use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE, GMEM_ZEROINIT};
+use windows::Win32::UI::Controls::Dialogs::{
+    PrintDlgW, DEVNAMES, PD_HIDEPRINTTOFILE, PD_NOPAGENUMS, PRINTDLGW,
+};
 
 const MAX_THERMAL_WIDTH: u32 = 576;
 
@@ -239,15 +243,18 @@ pub fn print_thermal(
 /// Pide al driver su DEVMODE por defecto para esta impresora (respeta
 /// cualquier configuración específica del driver) y le sobreescribe solo
 /// orientación/tamaño de papel si se pidieron — así no perdemos ajustes del
-/// driver que no nos interesa tocar.
+/// driver que no nos interesa tocar. El tamaño de papel se recibe ya
+/// resuelto en milímetros (la tabla de presets — tira 2x6, 4R, polaroid,
+/// etc. — vive del lado de TypeScript, no aquí, para no duplicarla).
 fn build_devmode(
     printer_name: &str,
     orientation: Option<&str>,
-    paper_size: Option<&str>,
+    width_mm: Option<f64>,
+    height_mm: Option<f64>,
 ) -> Result<Option<DEVMODEW>, String> {
-    if (orientation.is_none() || orientation == Some("auto"))
-        && (paper_size.is_none() || paper_size == Some("auto"))
-    {
+    let wants_orientation = matches!(orientation, Some(o) if o != "auto");
+    let wants_size = matches!((width_mm, height_mm), (Some(w), Some(h)) if w > 0.0 && h > 0.0);
+    if !wants_orientation && !wants_size {
         return Ok(None);
     }
 
@@ -283,35 +290,22 @@ fn build_devmode(
     // Los campos de orientación/tamaño viven en esta unión del DEVMODE.
     let fields = unsafe { &mut devmode.Anonymous1.Anonymous1 };
 
-    if let Some(o) = orientation {
-        if o != "auto" {
-            fields.dmOrientation = if o == "landscape" {
-                DMORIENT_LANDSCAPE as i16
-            } else {
-                DMORIENT_PORTRAIT as i16
-            };
-            devmode.dmFields |= DM_ORIENTATION;
-        }
+    if wants_orientation {
+        fields.dmOrientation = if orientation == Some("landscape") {
+            DMORIENT_LANDSCAPE as i16
+        } else {
+            DMORIENT_PORTRAIT as i16
+        };
+        devmode.dmFields |= DM_ORIENTATION;
     }
 
-    if let Some(size) = paper_size {
-        match size {
-            "a4" => {
-                fields.dmPaperSize = DMPAPER_A4 as i16;
-                devmode.dmFields |= DM_PAPERSIZE;
-            }
-            "carta" => {
-                fields.dmPaperSize = DMPAPER_LETTER as i16;
-                devmode.dmFields |= DM_PAPERSIZE;
-            }
-            "4x6" => {
-                // Décimas de milímetro: 4in=1016, 6in=1524.
-                fields.dmPaperSize = DMPAPER_USER as i16;
-                fields.dmPaperWidth = 1016;
-                fields.dmPaperLength = 1524;
-                devmode.dmFields |= DM_PAPERSIZE | DM_PAPERWIDTH | DM_PAPERLENGTH;
-            }
-            _ => {}
+    if let (Some(w), Some(h)) = (width_mm, height_mm) {
+        if w > 0.0 && h > 0.0 {
+            // dmPaperWidth/dmPaperLength están en décimas de milímetro.
+            fields.dmPaperSize = DMPAPER_USER as i16;
+            fields.dmPaperWidth = (w * 10.0).round() as i16;
+            fields.dmPaperLength = (h * 10.0).round() as i16;
+            devmode.dmFields |= DM_PAPERSIZE | DM_PAPERWIDTH | DM_PAPERLENGTH;
         }
     }
 
@@ -336,35 +330,20 @@ fn get_default_printer_name() -> Result<String, String> {
     Ok(String::from_utf16_lossy(&buf[..len]))
 }
 
-/// Imprime en la impresora predeterminada (no térmica) usando GDI directo,
-/// sin mostrar el diálogo de impresión de Windows — para que los invitados
-/// del evento no vean esa pantalla. `orientation`/`paper_size` sobreescriben
-/// el DEVMODE del driver (ver `build_devmode`); `copies` repite la página
-/// dentro del mismo trabajo de impresión.
-pub fn print_default_silent(
-    printer_name: Option<String>,
-    png_base64: &str,
-    copies: Option<u32>,
-    orientation: Option<String>,
-    paper_size: Option<String>,
+/// Abre la impresora, dibuja `img` (ya redimensionada por página, "cover
+/// fit": llena toda la hoja sin deformar, recortando el sobrante — así no
+/// quedan bordes blancos) y repite `copies` veces dentro del mismo trabajo
+/// de impresión.
+fn print_bitmap(
+    printer_name: &str,
+    devmode: Option<DEVMODEW>,
+    img: &image::RgbImage,
+    copies: u32,
 ) -> Result<(), String> {
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(png_base64)
-        .map_err(|e| format!("Imagen base64 inválida: {e}"))?;
-    let img = image::load_from_memory(&bytes)
-        .map_err(|e| format!("No se pudo decodificar la imagen: {e}"))?
-        .to_rgb8();
     let (img_w, img_h) = (img.width(), img.height());
 
-    let printer = match printer_name {
-        Some(p) => p,
-        None => get_default_printer_name()?,
-    };
-
-    let devmode = build_devmode(&printer, orientation.as_deref(), paper_size.as_deref())?;
-
     let driver = to_wide("WINSPOOL");
-    let device = to_wide(&printer);
+    let device = to_wide(printer_name);
     let hdc = unsafe {
         CreateDCW(
             PWSTR(driver.as_ptr() as *mut u16),
@@ -374,7 +353,7 @@ pub fn print_default_silent(
         )
     };
     if hdc.is_invalid() {
-        return Err(format!("No se pudo abrir la impresora \"{printer}\""));
+        return Err(format!("No se pudo abrir la impresora \"{printer_name}\""));
     }
 
     let result = (|| -> Result<(), String> {
@@ -388,14 +367,19 @@ pub fn print_default_silent(
         };
 
         if unsafe { StartDocW(hdc, &doc_info) } <= 0 {
-            return Err(format!("No se pudo iniciar el trabajo de impresión: {}", Error::from_win32()));
+            return Err(format!(
+                "No se pudo iniciar el trabajo de impresión: {}",
+                Error::from_win32()
+            ));
         }
 
         let page_w = unsafe { GetDeviceCaps(Some(hdc), HORZRES) }.max(1);
         let page_h = unsafe { GetDeviceCaps(Some(hdc), VERTRES) }.max(1);
 
-        // Encaja la imagen dentro de la página conservando proporción, centrada.
-        let scale = (page_w as f32 / img_w as f32).min(page_h as f32 / img_h as f32);
+        // "Cover fit": la imagen cubre toda la página sin deformarse; lo
+        // que sobra de un lado se recorta (offset negativo), en vez de
+        // dejar franjas blancas como haría un "contain".
+        let scale = (page_w as f32 / img_w as f32).max(page_h as f32 / img_h as f32);
         let draw_w = (img_w as f32 * scale).round() as i32;
         let draw_h = (img_h as f32 * scale).round() as i32;
         let offset_x = (page_w - draw_w) / 2;
@@ -429,8 +413,7 @@ pub fn print_default_silent(
             ..Default::default()
         };
 
-        let n = copies.unwrap_or(1).max(1);
-        for _ in 0..n {
+        for _ in 0..copies.max(1) {
             if unsafe { StartPage(hdc) } <= 0 {
                 return Err(format!("No se pudo iniciar la página: {}", Error::from_win32()));
             }
@@ -459,11 +442,198 @@ pub fn print_default_silent(
         }
 
         if unsafe { EndDoc(hdc) } <= 0 {
-            return Err(format!("No se pudo finalizar el trabajo de impresión: {}", Error::from_win32()));
+            return Err(format!(
+                "No se pudo finalizar el trabajo de impresión: {}",
+                Error::from_win32()
+            ));
         }
         Ok(())
     })();
 
     let _ = unsafe { DeleteDC(hdc) };
     result
+}
+
+/// Imprime en la impresora predeterminada (no térmica) usando GDI directo,
+/// sin mostrar el diálogo de impresión de Windows — para que los invitados
+/// del evento no vean esa pantalla. `orientation`/`width_mm`+`height_mm`
+/// sobreescriben el DEVMODE del driver (ver `build_devmode`); `copies`
+/// repite la página dentro del mismo trabajo de impresión.
+pub fn print_default_silent(
+    printer_name: Option<String>,
+    png_base64: &str,
+    copies: Option<u32>,
+    orientation: Option<String>,
+    width_mm: Option<f64>,
+    height_mm: Option<f64>,
+) -> Result<(), String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(png_base64)
+        .map_err(|e| format!("Imagen base64 inválida: {e}"))?;
+    let img = image::load_from_memory(&bytes)
+        .map_err(|e| format!("No se pudo decodificar la imagen: {e}"))?
+        .to_rgb8();
+
+    let printer = match printer_name {
+        Some(p) => p,
+        None => get_default_printer_name()?,
+    };
+
+    let devmode = build_devmode(&printer, orientation.as_deref(), width_mm, height_mm)?;
+    print_bitmap(&printer, devmode, &img, copies.unwrap_or(1))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrintDialogOutcome {
+    pub printed: bool,
+    pub printer: Option<String>,
+}
+
+struct PrintDialogChoice {
+    cancelled: bool,
+    printer_name: String,
+    copies: u32,
+}
+
+/// Arma el bloque DEVNAMES que PrintDlgW espera para abrir con una
+/// impresora concreta ya preseleccionada (si no se le da nada, Windows
+/// preselecciona la predeterminada del sistema por su cuenta).
+fn build_devnames(printer: &PrinterInfo) -> Result<HGLOBAL, String> {
+    let driver = to_wide(&printer.driver);
+    let device = to_wide(&printer.name);
+    let port = to_wide(&printer.port);
+    let header_words = (std::mem::size_of::<DEVNAMES>() / 2) as u16;
+    let total_words = header_words as usize + driver.len() + device.len() + port.len();
+
+    let hmem = unsafe { GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, total_words * 2) }
+        .map_err(|e| format!("No se pudo reservar memoria: {e}"))?;
+    let ptr = unsafe { GlobalLock(hmem) } as *mut u16;
+    if ptr.is_null() {
+        let _ = unsafe { GlobalFree(Some(hmem)) };
+        return Err("No se pudo preparar la selección de impresora".to_string());
+    }
+
+    let driver_offset = header_words;
+    let device_offset = driver_offset + driver.len() as u16;
+    let output_offset = device_offset + device.len() as u16;
+    unsafe {
+        let header = ptr as *mut DEVNAMES;
+        (*header).wDriverOffset = driver_offset;
+        (*header).wDeviceOffset = device_offset;
+        (*header).wOutputOffset = output_offset;
+        (*header).wDefault = 0;
+        std::ptr::copy_nonoverlapping(driver.as_ptr(), ptr.add(driver_offset as usize), driver.len());
+        std::ptr::copy_nonoverlapping(device.as_ptr(), ptr.add(device_offset as usize), device.len());
+        std::ptr::copy_nonoverlapping(port.as_ptr(), ptr.add(output_offset as usize), port.len());
+    }
+    let _ = unsafe { GlobalUnlock(hmem) };
+    Ok(hmem)
+}
+
+fn read_devnames_device(hmem: HGLOBAL) -> Result<String, String> {
+    if hmem.is_invalid() {
+        return Err("No se eligió ninguna impresora".to_string());
+    }
+    let ptr = unsafe { GlobalLock(hmem) } as *const u16;
+    if ptr.is_null() {
+        return Err("No se pudo leer la impresora elegida".to_string());
+    }
+    let header = unsafe { &*(ptr as *const DEVNAMES) };
+    let device_ptr = unsafe { ptr.add(header.wDeviceOffset as usize) };
+    let name = wide_to_string(PWSTR(device_ptr as *mut u16));
+    let _ = unsafe { GlobalUnlock(hmem) };
+    Ok(name)
+}
+
+/// Muestra el diálogo NATIVO de impresión de Windows (PrintDlgW — el común
+/// de todo el sistema, no el del navegador) para que el operador elija a
+/// qué impresora mandar la foto y cuántas copias, o cancele.
+fn show_print_dialog(preferred_printer: Option<String>) -> Result<PrintDialogChoice, String> {
+    let preselected = match preferred_printer.filter(|n| !n.is_empty()) {
+        Some(name) => {
+            let printers = list_printers()?;
+            printers.into_iter().find(|p| p.name == name)
+        }
+        None => None,
+    };
+
+    let mut pd = PRINTDLGW {
+        lStructSize: std::mem::size_of::<PRINTDLGW>() as u32,
+        Flags: PD_NOPAGENUMS | PD_HIDEPRINTTOFILE,
+        nMinPage: 1,
+        nMaxPage: 1,
+        nCopies: 1,
+        ..Default::default()
+    };
+    if let Some(printer) = &preselected {
+        pd.hDevNames = build_devnames(printer)?;
+    }
+
+    let ok = unsafe { PrintDlgW(&mut pd) }.as_bool();
+
+    if !ok {
+        if !pd.hDevNames.is_invalid() {
+            let _ = unsafe { GlobalFree(Some(pd.hDevNames)) };
+        }
+        if !pd.hDevMode.is_invalid() {
+            let _ = unsafe { GlobalFree(Some(pd.hDevMode)) };
+        }
+        return Ok(PrintDialogChoice {
+            cancelled: true,
+            printer_name: String::new(),
+            copies: 1,
+        });
+    }
+
+    let printer_name = read_devnames_device(pd.hDevNames);
+    let copies = pd.nCopies.max(1) as u32;
+
+    if !pd.hDevNames.is_invalid() {
+        let _ = unsafe { GlobalFree(Some(pd.hDevNames)) };
+    }
+    if !pd.hDevMode.is_invalid() {
+        let _ = unsafe { GlobalFree(Some(pd.hDevMode)) };
+    }
+
+    Ok(PrintDialogChoice {
+        cancelled: false,
+        printer_name: printer_name?,
+        copies,
+    })
+}
+
+/// Flujo completo "profesional": abre el diálogo nativo de Windows para que
+/// el operador elija impresora/copias, y con esa elección dibuja la foto
+/// con GDI directo al tamaño de papel exacto pedido (cover-fit, sin
+/// bordes). Si el operador cancela el diálogo, no se considera un error.
+pub fn print_with_native_dialog(
+    png_base64: &str,
+    preferred_printer: Option<String>,
+    orientation: Option<String>,
+    width_mm: Option<f64>,
+    height_mm: Option<f64>,
+) -> Result<PrintDialogOutcome, String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(png_base64)
+        .map_err(|e| format!("Imagen base64 inválida: {e}"))?;
+    let img = image::load_from_memory(&bytes)
+        .map_err(|e| format!("No se pudo decodificar la imagen: {e}"))?
+        .to_rgb8();
+
+    let choice = show_print_dialog(preferred_printer)?;
+    if choice.cancelled {
+        return Ok(PrintDialogOutcome {
+            printed: false,
+            printer: None,
+        });
+    }
+
+    let devmode = build_devmode(&choice.printer_name, orientation.as_deref(), width_mm, height_mm)?;
+    print_bitmap(&choice.printer_name, devmode, &img, choice.copies)?;
+
+    Ok(PrintDialogOutcome {
+        printed: true,
+        printer: Some(choice.printer_name),
+    })
 }

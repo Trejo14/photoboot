@@ -1,7 +1,17 @@
 import { isTauri } from "./tauri";
 
 export type PrintOrientation = "portrait" | "landscape";
-export type PrintPaperSize = "auto" | "4x6" | "a4" | "carta";
+export type PrintPaperSize =
+  | "auto"
+  | "strip-2x6"
+  | "4x6"
+  | "polaroid-2.6x4"
+  | "square-4x4"
+  | "5x7"
+  | "6x8"
+  | "carta"
+  | "a4"
+  | "custom";
 
 export interface Settings {
   adminPin: string;
@@ -15,6 +25,9 @@ export interface Settings {
   printCopies: number;
   printOrientation: PrintOrientation;
   printPaperSize: PrintPaperSize;
+  // Solo se usan cuando printPaperSize === "custom".
+  customPaperWidthMm: number | null;
+  customPaperHeightMm: number | null;
 }
 
 const DEFAULTS: Settings = {
@@ -27,6 +40,8 @@ const DEFAULTS: Settings = {
   printCopies: 1,
   printOrientation: "portrait",
   printPaperSize: "auto",
+  customPaperWidthMm: null,
+  customPaperHeightMm: null,
 };
 
 let cache: Settings | null = null;

@@ -13,6 +13,7 @@ import { activateLicense, type LicenseInfo } from "@/lib/license";
 interface Props {
   deviceToken: string;
   email: string | null;
+  blocked?: boolean;
   onActivated: (license: LicenseInfo) => void;
   onCancel?: () => void;
 }
@@ -20,6 +21,7 @@ interface Props {
 export function LicenseScreen({
   deviceToken,
   email,
+  blocked = false,
   onActivated,
   onCancel,
 }: Props) {
@@ -50,10 +52,15 @@ export function LicenseScreen({
     <main className="flex min-h-dvh items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-center">Activar licencia</CardTitle>
+          <CardTitle
+            className={`text-center ${blocked ? "text-destructive" : ""}`}
+          >
+            {blocked ? "Suscripción vencida" : "Activar licencia"}
+          </CardTitle>
           <CardDescription className="text-center">
-            Ingresa la clave de licencia Pro o Lifetime para desbloquear todas
-            las funciones.
+            {blocked
+              ? "Tu suscripción venció. Ingresa una clave de licencia vigente para seguir usando la cabina."
+              : "Ingresa la clave de licencia Pro o Lifetime para desbloquear todas las funciones."}
           </CardDescription>
         </CardHeader>
         <CardContent>

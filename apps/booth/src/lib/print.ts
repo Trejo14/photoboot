@@ -1,5 +1,6 @@
 import { invoke, isTauri } from "./tauri";
 import type { PrintOrientation, PrintPaperSize } from "./settings";
+import { resolvePaperMm } from "./paper-sizes";
 
 export interface PrinterInfo {
   name: string;
@@ -13,6 +14,8 @@ export interface PrintOptions {
   copies?: number;
   orientation?: PrintOrientation;
   paperSize?: PrintPaperSize;
+  customWidthMm?: number | null;
+  customHeightMm?: number | null;
 }
 
 export async function listPrinters(): Promise<PrinterInfo[]> {
@@ -134,12 +137,48 @@ export async function printDefaultSilent(
   options: PrintOptions = {},
 ): Promise<void> {
   const pngBase64 = await imageToPngBase64(blob);
+  const mm = resolvePaperMm(
+    options.paperSize ?? "auto",
+    options.customWidthMm ?? null,
+    options.customHeightMm ?? null,
+  );
   await invoke("print_default_silent", {
     printer: options.printer ?? null,
     pngBase64,
     copies: options.copies ?? null,
     orientation: options.orientation ?? null,
-    paperSize: options.paperSize ?? null,
+    widthMm: mm?.widthMm ?? null,
+    heightMm: mm?.heightMm ?? null,
+  });
+}
+
+interface PrintDialogOutcome {
+  printed: boolean;
+  printer: string | null;
+}
+
+// Diálogo NATIVO de impresión de Windows (PrintDlgW — el común de todo el
+// sistema, no el del navegador): deja elegir impresora y copias, y con esa
+// elección el propio código dibuja la foto por GDI directo al tamaño de
+// papel exacto pedido (cover-fit, sin bordes blancos) — a diferencia de
+// window.print(), aquí el escalado/DPI lo controla nuestro código, no el
+// motor de impresión del navegador.
+export async function printWithNativeDialog(
+  blob: Blob,
+  options: PrintOptions = {},
+): Promise<PrintDialogOutcome> {
+  const pngBase64 = await imageToPngBase64(blob);
+  const mm = resolvePaperMm(
+    options.paperSize ?? "auto",
+    options.customWidthMm ?? null,
+    options.customHeightMm ?? null,
+  );
+  return invoke<PrintDialogOutcome>("print_with_native_dialog", {
+    pngBase64,
+    preferredPrinter: options.printer ?? null,
+    orientation: options.orientation ?? null,
+    widthMm: mm?.widthMm ?? null,
+    heightMm: mm?.heightMm ?? null,
   });
 }
 
@@ -147,7 +186,7 @@ export async function printImage(
   blob: Blob,
   imageUrl: string,
   options: PrintOptions = {},
-): Promise<"thermal" | "dialog"> {
+): Promise<"thermal" | "dialog" | "cancelled"> {
   if (isTauri) {
     // Las térmicas (recibo) no pasan por el pipeline de impresión de
     // Windows — se les manda ESC/POS crudo directo, así que un diálogo no
@@ -163,11 +202,13 @@ export async function printImage(
       await printThermal(blob, { ...options, printer: thermal.name });
       return "thermal";
     }
+
+    const outcome = await printWithNativeDialog(blob, options);
+    return outcome.printed ? "dialog" : "cancelled";
   }
 
-  // Impresora normal: se abre el diálogo de Windows para que se elija a
-  // qué impresora mandarlo (o "Guardar como PDF"), en vez de mandarlo
-  // directo en silencio.
+  // Fuera de Tauri (dev en navegador puro) no existe el diálogo nativo de
+  // Windows — se usa window.print() como aproximación solo para pruebas.
   await printViaSystemDialog(imageUrl);
   return "dialog";
 }

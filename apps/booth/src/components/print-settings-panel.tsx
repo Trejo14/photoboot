@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Button } from "@photobooth/ui";
+import { Button, Input } from "@photobooth/ui";
 import { listPrinters, printImage, type PrinterInfo } from "@/lib/print";
+import { PAPER_SIZE_OPTIONS } from "@/lib/paper-sizes";
 import type { Settings } from "@/lib/settings";
 
 interface LastPhoto {
@@ -54,11 +55,15 @@ export function PrintSettingsPanel({
         copies: settings.printCopies,
         orientation: settings.printOrientation,
         paperSize: settings.printPaperSize,
+        customWidthMm: settings.customPaperWidthMm,
+        customHeightMm: settings.customPaperHeightMm,
       });
       setResult(
         mode === "thermal"
           ? "Enviado a la impresora térmica."
-          : "Se abrió el diálogo de impresión de Windows.",
+          : mode === "cancelled"
+            ? "Se canceló en el diálogo de impresión."
+            : "Impreso correctamente.",
       );
     } catch (err) {
       setResult(
@@ -127,13 +132,51 @@ export function PrintSettingsPanel({
             }
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           >
-            <option value="auto">Como esté configurada</option>
-            <option value="4x6">4x6 in (foto)</option>
-            <option value="carta">Carta</option>
-            <option value="a4">A4</option>
+            {PAPER_SIZE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
+
+      {settings.printPaperSize === "custom" && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Ancho (mm)</label>
+            <Input
+              type="number"
+              min={1}
+              step={0.1}
+              value={settings.customPaperWidthMm ?? ""}
+              onChange={(e) =>
+                onSettingsChange({
+                  customPaperWidthMm: e.target.value
+                    ? Number(e.target.value)
+                    : null,
+                })
+              }
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Alto (mm)</label>
+            <Input
+              type="number"
+              min={1}
+              step={0.1}
+              value={settings.customPaperHeightMm ?? ""}
+              onChange={(e) =>
+                onSettingsChange({
+                  customPaperHeightMm: e.target.value
+                    ? Number(e.target.value)
+                    : null,
+                })
+              }
+            />
+          </div>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <label className="text-sm font-medium">
