@@ -657,6 +657,7 @@ export function App() {
     if (screen === "imprimiendo") {
       return (
         <ImprimiendoScreen
+          imageUrl={state.context.composedImageUrl}
           error={state.context.printerError}
           feedback={printFeedback}
           onRetry={() => send({ type: "PRINT_RETRY" })}

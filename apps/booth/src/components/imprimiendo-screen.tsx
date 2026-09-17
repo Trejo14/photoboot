@@ -1,16 +1,30 @@
 import { Button } from "@photobooth/ui";
 
 interface Props {
+  imageUrl: string | null;
   error: string | null;
   feedback?: string | null;
   onRetry: () => void;
   onSkip: () => void;
 }
 
-export function ImprimiendoScreen({ error, feedback, onRetry, onSkip }: Props) {
+export function ImprimiendoScreen({
+  imageUrl,
+  error,
+  feedback,
+  onRetry,
+  onSkip,
+}: Props) {
   if (error) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-background p-4">
+        {imageUrl && (
+          <img
+            src={imageUrl}
+            alt="Foto a imprimir"
+            className="max-h-[45dvh] w-auto rounded-lg object-contain shadow-2xl"
+          />
+        )}
         <div className="flex flex-col items-center gap-3">
           <div className="h-16 w-16 rounded-full bg-red-500/10 flex items-center justify-center">
             <svg
@@ -49,15 +63,20 @@ export function ImprimiendoScreen({ error, feedback, onRetry, onSkip }: Props) {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-black p-4">
-      <div className="relative">
-        <div className="h-20 w-20 rounded-full border-4 border-white/10 border-t-[#22d3ee] animate-spin" />
+      {imageUrl && (
+        <img
+          src={imageUrl}
+          alt="Foto a imprimir"
+          className="max-h-[60dvh] w-auto rounded-lg object-contain shadow-2xl"
+        />
+      )}
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-12 w-12 rounded-full border-4 border-white/10 border-t-[#22d3ee] animate-spin" />
+        <h2 className="text-xl font-bold text-white text-center">
+          {feedback ?? "Imprimiendo tu foto..."}
+        </h2>
+        <p className="text-sm text-white/60">No cierres la aplicación</p>
       </div>
-      <h2 className="text-2xl font-bold text-white">
-        {feedback ?? "Imprimiendo tu foto..."}
-      </h2>
-      <p className="text-sm text-white/60">
-        No cierres la aplicación
-      </p>
     </div>
   );
 }
