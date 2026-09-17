@@ -13,13 +13,14 @@ import { listEvents, createOwnEvent, type EventItem } from "@/lib/api";
 
 interface Props {
   onRegister: (info: { eventId: string; boothName: string }) => Promise<void>;
+  onLogout: () => void;
 }
 
 function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function EventMenuScreen({ onRegister }: Props) {
+export function EventMenuScreen({ onRegister, onLogout }: Props) {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -172,6 +173,13 @@ export function EventMenuScreen({ onRegister }: Props) {
             Elige el evento activo, crea uno nuevo o configura la cabina
             manualmente.
           </p>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="text-xs text-white/40 underline underline-offset-2 hover:text-white/70"
+          >
+            Cerrar sesión
+          </button>
         </div>
 
         {isOffline && (

@@ -271,33 +271,32 @@ export function App() {
     if (screen === "imprimiendo" && state.context.composedBlob) {
       const blob = state.context.composedBlob;
       void (async () => {
+        const url = URL.createObjectURL(blob);
         try {
-          const url = URL.createObjectURL(blob);
-          try {
-            const mode = await printImage(blob, url, {
-              printer: settings?.printerName,
-              copies: settings?.printCopies,
-              orientation: settings?.printOrientation,
-              paperSize: settings?.printPaperSize,
-            });
-            const label =
-              mode === "thermal"
-                ? "Impreso en impresora térmica"
-                : mode === "silent"
-                  ? "Enviado a la impresora predeterminada"
-                  : "Abriendo el diálogo de impresión de Windows…";
-            setPrintFeedback(label);
+          // Se muestra desde antes de llamar a printImage(): para el modo
+          // "dialog" la promesa no se resuelve hasta que el operador cierra
+          // el diálogo de Windows (imprime o cancela), así que este mensaje
+          // es lo único visible durante todo ese tiempo.
+          setPrintFeedback("Abriendo el diálogo de impresión de Windows…");
+          const mode = await printImage(blob, url, {
+            printer: settings?.printerName,
+            copies: settings?.printCopies,
+            orientation: settings?.printOrientation,
+            paperSize: settings?.printPaperSize,
+          });
+          if (mode === "thermal") {
+            setPrintFeedback("Impreso en impresora térmica");
             await new Promise((r) => setTimeout(r, 1200));
-            send({ type: "PRINT_SUCCESS" });
-          } finally {
-            setPrintFeedback(null);
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
           }
+          send({ type: "PRINT_SUCCESS" });
         } catch (err) {
           send({
             type: "PRINT_FAILED",
             error: err instanceof Error ? err.message : "Error al imprimir",
           });
+        } finally {
+          setPrintFeedback(null);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
       })();
     }
@@ -533,7 +532,9 @@ export function App() {
     }
 
     if (screen === "event-menu") {
-      return <EventMenuScreen onRegister={handleRegister} />;
+      return (
+        <EventMenuScreen onRegister={handleRegister} onLogout={handleLogout} />
+      );
     }
 
     if (screen === "event-finished") {

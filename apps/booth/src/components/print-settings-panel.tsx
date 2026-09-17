@@ -58,9 +58,7 @@ export function PrintSettingsPanel({
       setResult(
         mode === "thermal"
           ? "Enviado a la impresora térmica."
-          : mode === "silent"
-            ? "Enviado a la impresora."
-            : "Se abrió el diálogo de impresión de Windows.",
+          : "Se abrió el diálogo de impresión de Windows.",
       );
     } catch (err) {
       setResult(

@@ -75,26 +75,58 @@ export async function printThermal(
   });
 }
 
-// Usado solo como opción manual del operador (panel de impresión) o en modo
-// dev sin Tauri. Un iframe de tamaño 0 puede saltarse el layout/paginado en
-// algunos motores, así que se le da un tamaño real y solo se oculta
-// posicionándolo fuera de pantalla.
-export function printViaSystemDialog(imageUrl: string): void {
-  const frame = document.createElement("iframe");
-  frame.style.position = "fixed";
-  frame.style.left = "-10000px";
-  frame.style.top = "0";
-  frame.style.width = "800px";
-  frame.style.height = "600px";
-  frame.style.border = "0";
-  frame.srcdoc =
-    "<html><head><style>" +
-    "html,body{margin:0}img{display:block;width:100%;max-width:800px;margin:0 auto}" +
-    '</style></head><body><img src="' +
-    imageUrl +
-    '" onload="setTimeout(function(){window.focus();window.print();},200)"/></body></html>';
-  document.body.appendChild(frame);
-  setTimeout(() => frame.remove(), 60000);
+// Abre el diálogo de impresión nativo de Windows (elegir impresora, número
+// de copias, orientación, o "Microsoft Print to PDF") sobre la ventana
+// actual — en vez del viejo truco de un iframe oculto de tamaño 0, que
+// podía saltarse el layout/paginado en algunos motores y quedarse pegado
+// sin abrir nada. Se inyecta la foto en el propio documento y una hoja de
+// estilo "@media print" oculta todo lo demás solo durante la impresión;
+// fuera de eso, el elemento nunca se ve.
+export function printViaSystemDialog(imageUrl: string): Promise<void> {
+  return new Promise((resolve) => {
+    const container = document.createElement("div");
+    container.id = "print-photo-container";
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    container.appendChild(img);
+    document.body.appendChild(container);
+
+    const style = document.createElement("style");
+    style.textContent = `
+      #print-photo-container { display: none; }
+      @media print {
+        body > *:not(#print-photo-container) { display: none !important; }
+        #print-photo-container {
+          display: block !important;
+          position: static;
+          width: 100%;
+        }
+        #print-photo-container img { width: 100%; height: auto; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    let done = false;
+    function cleanup() {
+      if (done) return;
+      done = true;
+      window.removeEventListener("afterprint", cleanup);
+      container.remove();
+      style.remove();
+      resolve();
+    }
+    window.addEventListener("afterprint", cleanup);
+    // Salvavidas por si "afterprint" no dispara en algún build de WebView2.
+    setTimeout(cleanup, 60_000);
+
+    function triggerPrint() {
+      // Un tick para que el navegador termine de pintar la imagen antes
+      // de abrir el diálogo — si no, a veces sale la hoja en blanco.
+      requestAnimationFrame(() => window.print());
+    }
+    if (img.complete) triggerPrint();
+    else img.onload = triggerPrint;
+  });
 }
 
 export async function printDefaultSilent(
@@ -115,29 +147,27 @@ export async function printImage(
   blob: Blob,
   imageUrl: string,
   options: PrintOptions = {},
-): Promise<"thermal" | "silent" | "dialog"> {
-  if (!isTauri) {
-    printViaSystemDialog(imageUrl);
-    return "dialog";
+): Promise<"thermal" | "dialog"> {
+  if (isTauri) {
+    // Las térmicas (recibo) no pasan por el pipeline de impresión de
+    // Windows — se les manda ESC/POS crudo directo, así que un diálogo no
+    // aplicaría aquí de ninguna forma útil.
+    const printers = await listPrinters();
+    const requested = options.printer
+      ? printers.find((p) => p.name === options.printer)
+      : undefined;
+    const thermal = requested?.thermal
+      ? requested
+      : printers.find((p) => p.thermal);
+    if (thermal) {
+      await printThermal(blob, { ...options, printer: thermal.name });
+      return "thermal";
+    }
   }
 
-  const printers = await listPrinters();
-  const requested = options.printer
-    ? printers.find((p) => p.name === options.printer)
-    : undefined;
-  const thermal = requested?.thermal
-    ? requested
-    : printers.find((p) => p.thermal);
-  if (thermal) {
-    await printThermal(blob, { ...options, printer: thermal.name });
-    return "thermal";
-  }
-
-  // Impresora normal (no térmica): imprime directo por GDI sin mostrar el
-  // diálogo de Windows, para que los invitados no lo vean. Ya no hay un
-  // reintento silencioso oculto aquí si esto falla — el error sube tal
-  // cual para que la pantalla de "Imprimiendo" lo muestre con opción de
-  // reintentar, en vez de fallar sin que nadie se entere.
-  await printDefaultSilent(blob, options);
-  return "silent";
+  // Impresora normal: se abre el diálogo de Windows para que se elija a
+  // qué impresora mandarlo (o "Guardar como PDF"), en vez de mandarlo
+  // directo en silencio.
+  await printViaSystemDialog(imageUrl);
+  return "dialog";
 }

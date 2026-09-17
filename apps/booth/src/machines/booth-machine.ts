@@ -276,6 +276,10 @@ export const boothMachine = setup({
           }),
           target: "format-selection",
         },
+        LOGOUT: {
+          target: "login",
+          actions: assign({ device: undefined, userEmail: null }),
+        },
       },
     },
 
