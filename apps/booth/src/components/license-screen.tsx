@@ -9,6 +9,7 @@ import {
   Input,
 } from "@photobooth/ui";
 import { activateLicense, type LicenseInfo } from "@/lib/license";
+import { errorMessage } from "@/lib/errors";
 
 interface Props {
   deviceToken: string;
@@ -41,9 +42,7 @@ export function LicenseScreen({
       );
       onActivated(license);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "No se pudo activar la licencia",
-      );
+      setError(errorMessage(err, "No se pudo activar la licencia"));
       setLoading(false);
     }
   }

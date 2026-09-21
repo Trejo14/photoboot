@@ -1,5 +1,6 @@
 import { getDB, type QueueEntry } from "./db";
 import { uploadPhoto } from "./upload";
+import { errorMessage } from "./errors";
 
 export async function enqueuePhoto(
   blob: Blob,
@@ -64,7 +65,7 @@ export async function flushPending(
       photoIds.push(photoId);
       photoIdByEntryId[entry.id] = photoId;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Error desconocido";
+      const message = errorMessage(err, "Error desconocido");
       await markFailed(entry.id, message);
       failed++;
     }

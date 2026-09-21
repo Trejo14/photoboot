@@ -10,6 +10,7 @@ import {
   ExclamationIcon,
 } from "./icons";
 import { listEvents, createOwnEvent, type EventItem } from "@/lib/api";
+import { errorMessage } from "@/lib/errors";
 
 interface Props {
   onRegister: (info: { eventId: string; boothName: string }) => Promise<void>;
@@ -98,7 +99,7 @@ export function EventMenuScreen({ onRegister, onLogout }: Props) {
       });
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Error al registrar la cabina",
+        errorMessage(err, "Error al registrar la cabina"),
       );
       setSubmitting(false);
     }
@@ -115,7 +116,7 @@ export function EventMenuScreen({ onRegister, onLogout }: Props) {
       });
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Error al registrar la cabina",
+        errorMessage(err, "Error al registrar la cabina"),
       );
       setSubmitting(false);
     }
@@ -148,7 +149,7 @@ export function EventMenuScreen({ onRegister, onLogout }: Props) {
       setBoothName(created.name.slice(0, 20) || "Cabina 1");
     } catch (err) {
       setCreateError(
-        err instanceof Error ? err.message : "No se pudo crear el evento",
+        errorMessage(err, "No se pudo crear el evento"),
       );
     } finally {
       setCreatingEvent(false);

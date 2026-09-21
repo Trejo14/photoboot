@@ -186,10 +186,17 @@ export async function printImage(
   blob: Blob,
   imageUrl: string,
   options: PrintOptions = {},
-): Promise<"thermal" | "dialog" | "cancelled"> {
+): Promise<"thermal" | "dialog"> {
+  // El diálogo nativo de Windows (PrintDlgW) daba control preciso de
+  // tamaño de papel, pero a cambio: sin vista previa, el driver duplicando
+  // copias por su cuenta, y "Microsoft Print to PDF" sin guardar nada sin
+  // ayuda extra. Se regresa al diálogo del navegador (window.print()) —
+  // como funcionaba originalmente — que resuelve los tres de una vez: trae
+  // su propia vista previa, su propio control de copias, y su propio flujo
+  // de "Guardar como PDF" que si funciona solo.
   if (isTauri) {
     // Las térmicas (recibo) no pasan por el pipeline de impresión de
-    // Windows — se les manda ESC/POS crudo directo, así que un diálogo no
+    // Windows — se les manda ESC/POS crudo directo, así que el diálogo no
     // aplicaría aquí de ninguna forma útil.
     const printers = await listPrinters();
     const requested = options.printer
@@ -202,13 +209,8 @@ export async function printImage(
       await printThermal(blob, { ...options, printer: thermal.name });
       return "thermal";
     }
-
-    const outcome = await printWithNativeDialog(blob, options);
-    return outcome.printed ? "dialog" : "cancelled";
   }
 
-  // Fuera de Tauri (dev en navegador puro) no existe el diálogo nativo de
-  // Windows — se usa window.print() como aproximación solo para pruebas.
   await printViaSystemDialog(imageUrl);
   return "dialog";
 }

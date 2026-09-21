@@ -9,6 +9,7 @@ import {
 } from "@photobooth/ui";
 import { getSettings, saveSettings, type Settings } from "@/lib/settings";
 import { invoke, isTauri } from "@/lib/tauri";
+import { errorMessage } from "@/lib/errors";
 
 interface Props {
   onRegister: (info: { eventId: string; boothName: string }) => Promise<void>;
@@ -52,7 +53,7 @@ export function SetupScreen({ onRegister }: Props) {
     try {
       await onRegister({ eventId: eventId.trim(), boothName: boothName.trim() });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al registrar la cabina");
+      setError(errorMessage(err, "Error al registrar la cabina"));
       setLoading(false);
     }
   }

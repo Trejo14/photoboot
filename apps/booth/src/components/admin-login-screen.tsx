@@ -23,6 +23,7 @@ import {
   verifyCode,
   setAuthToken,
 } from "@/lib/api";
+import { errorMessage } from "@/lib/errors";
 
 interface Props {
   onAuthenticated: (email: string) => void;
@@ -92,9 +93,7 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
       await login(email.trim(), password);
       onAuthenticated(email.trim());
     } catch (err) {
-      setError(
-        mapError(err instanceof Error ? err.message : "Credenciales inválidas"),
-      );
+      setError(mapError(errorMessage(err, "Credenciales inválidas")));
     } finally {
       setLoading(false);
     }
@@ -117,11 +116,7 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
         }
       }, 1200);
     } catch (err) {
-      setError(
-        mapError(
-          err instanceof Error ? err.message : "No se pudo crear la cuenta",
-        ),
-      );
+      setError(mapError(errorMessage(err, "No se pudo crear la cuenta")));
       setLoading(false);
     }
   }
@@ -136,11 +131,7 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
       setOtpStep("code");
       startResendCooldown();
     } catch (err) {
-      setError(
-        mapError(
-          err instanceof Error ? err.message : "No se pudo enviar el código",
-        ),
-      );
+      setError(mapError(errorMessage(err, "No se pudo enviar el código")));
     } finally {
       setLoading(false);
     }
@@ -155,9 +146,7 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
       await verifyCode(email.trim(), code.trim());
       onAuthenticated(email.trim());
     } catch (err) {
-      setError(
-        mapError(err instanceof Error ? err.message : "Código inválido"),
-      );
+      setError(mapError(errorMessage(err, "Código inválido")));
       setLoading(false);
     }
   }
@@ -171,11 +160,7 @@ export function AdminLoginScreen({ onAuthenticated, onSelectPlan }: Props) {
       await requestCode(email.trim());
       startResendCooldown();
     } catch (err) {
-      setError(
-        mapError(
-          err instanceof Error ? err.message : "No se pudo reenviar el código",
-        ),
-      );
+      setError(mapError(errorMessage(err, "No se pudo reenviar el código")));
     } finally {
       setLoading(false);
     }

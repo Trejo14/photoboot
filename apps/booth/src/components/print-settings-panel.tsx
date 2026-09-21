@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Input } from "@photobooth/ui";
 import { listPrinters, printImage, type PrinterInfo } from "@/lib/print";
 import { PAPER_SIZE_OPTIONS } from "@/lib/paper-sizes";
+import { errorMessage } from "@/lib/errors";
 import type { Settings } from "@/lib/settings";
 
 interface LastPhoto {
@@ -61,14 +62,10 @@ export function PrintSettingsPanel({
       setResult(
         mode === "thermal"
           ? "Enviado a la impresora térmica."
-          : mode === "cancelled"
-            ? "Se canceló en el diálogo de impresión."
-            : "Impreso correctamente.",
+          : "Impreso correctamente.",
       );
     } catch (err) {
-      setResult(
-        err instanceof Error ? `Error: ${err.message}` : "Error al imprimir",
-      );
+      setResult(`Error: ${errorMessage(err, "Error al imprimir")}`);
     } finally {
       setPrinting(false);
     }

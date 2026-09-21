@@ -4,6 +4,7 @@ import { LogoBirdcam } from "./logo";
 import { ExclamationIcon } from "./icons";
 import { apiRequest, getAuthToken } from "@/lib/api";
 import { isTauri } from "@/lib/tauri";
+import { errorMessage } from "@/lib/errors";
 
 interface Props {
   onPlanSelected: (plan: "free" | "pro" | "lifetime") => void;
@@ -118,9 +119,7 @@ export function PlanSelector({ onPlanSelected, onBack }: Props) {
         window.location.href = data.url;
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Error al crear sesión de pago",
-      );
+      setError(errorMessage(err, "Error al crear sesión de pago"));
     } finally {
       setLoading(false);
     }

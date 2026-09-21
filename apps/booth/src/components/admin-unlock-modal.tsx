@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "@photobooth/ui";
 import { getSettings } from "@/lib/settings";
 import { invoke, listen } from "@/lib/tauri";
+import { errorMessage } from "@/lib/errors";
 
 export function AdminUnlockModal() {
   const [open, setOpen] = useState(false);
@@ -30,7 +31,7 @@ export function AdminUnlockModal() {
         setLoading(false);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo validar");
+      setError(errorMessage(err, "No se pudo validar"));
       setLoading(false);
     }
   }

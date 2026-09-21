@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { Button } from "@photobooth/ui";
 import { env } from "@/lib/env";
 import { printImage } from "@/lib/print";
+import { errorMessage } from "@/lib/errors";
 
 interface Props {
   photoId: string | null;
@@ -36,9 +37,7 @@ export function DeliveryScreen({ photoId, blob, imageUrl, onDone }: Props) {
           : "Abriendo el diálogo de impresión"
       );
     } catch (err) {
-      setPrintStatus(
-        err instanceof Error ? err.message : "Error al imprimir"
-      );
+      setPrintStatus(errorMessage(err, "Error al imprimir"));
     } finally {
       setPrinting(false);
     }

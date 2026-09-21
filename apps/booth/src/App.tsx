@@ -17,6 +17,7 @@ import { applyTrialWatermark } from "@/lib/watermark";
 import { logout, getAuthToken, setAuthToken, getProfile } from "@/lib/api";
 import { markSetupComplete } from "@/lib/setup-state";
 import { getSettings, type Settings } from "@/lib/settings";
+import { errorMessage } from "@/lib/errors";
 import { enterKioskMode, exitKioskMode, listen } from "@/lib/tauri";
 import { SplashScreen, STATUS_MESSAGES } from "@/components/splash-screen";
 import { WelcomeWizard } from "@/components/welcome-wizard";
@@ -275,9 +276,9 @@ export function App() {
         try {
           // Se muestra desde antes de llamar a printImage(): para el modo
           // "dialog" la promesa no se resuelve hasta que el operador cierra
-          // el diálogo de Windows (imprime o cancela), así que este mensaje
-          // es lo único visible durante todo ese tiempo.
-          setPrintFeedback("Abriendo el diálogo de impresión de Windows…");
+          // el diálogo de impresión (imprime o cancela), así que este
+          // mensaje es lo único visible durante todo ese tiempo.
+          setPrintFeedback("Abriendo el diálogo de impresión…");
           const mode = await printImage(blob, url, {
             printer: settings?.printerName,
             copies: settings?.printCopies,
@@ -286,13 +287,6 @@ export function App() {
             customWidthMm: settings?.customPaperWidthMm,
             customHeightMm: settings?.customPaperHeightMm,
           });
-          if (mode === "cancelled") {
-            // No es un error real — el operador cerró el diálogo sin
-            // imprimir. Se reusa la pantalla de error (con reintentar/
-            // omitir) en vez de avanzar como si hubiera impreso.
-            send({ type: "PRINT_FAILED", error: "Impresión cancelada." });
-            return;
-          }
           if (mode === "thermal") {
             setPrintFeedback("Impreso en impresora térmica");
             await new Promise((r) => setTimeout(r, 1200));
@@ -301,7 +295,7 @@ export function App() {
         } catch (err) {
           send({
             type: "PRINT_FAILED",
-            error: err instanceof Error ? err.message : "Error al imprimir",
+            error: errorMessage(err, "Error al imprimir"),
           });
         } finally {
           setPrintFeedback(null);
