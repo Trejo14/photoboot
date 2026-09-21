@@ -17,7 +17,8 @@ use windows::Win32::Graphics::Printing::{
 use windows::Win32::Storage::Xps::{EndDoc, EndPage, StartDocW, StartPage, DOCINFOW};
 use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE, GMEM_ZEROINIT};
 use windows::Win32::UI::Controls::Dialogs::{
-    PrintDlgW, DEVNAMES, PD_HIDEPRINTTOFILE, PD_NOPAGENUMS, PRINTDLGW,
+    GetSaveFileNameW, PrintDlgW, DEVNAMES, OFN_HIDEREADONLY, OFN_NOCHANGEDIR, OFN_OVERWRITEPROMPT,
+    OFN_PATHMUSTEXIST, OPENFILENAMEW, PD_HIDEPRINTTOFILE, PD_NOPAGENUMS, PRINTDLGW,
 };
 
 const MAX_THERMAL_WIDTH: u32 = 576;
@@ -344,6 +345,7 @@ fn print_bitmap(
     devmode: Option<DEVMODEW>,
     img: &image::RgbImage,
     copies: u32,
+    output_file: Option<&str>,
 ) -> Result<(), String> {
     let (img_w, img_h) = (img.width(), img.height());
 
@@ -363,10 +365,18 @@ fn print_bitmap(
 
     let result = (|| -> Result<(), String> {
         let doc_name = to_wide("Cabina Photobooth");
+        // "Microsoft Print to PDF"/XPS Document Writer y similares son
+        // impresoras que escriben a un archivo — sin decirles a cuál, no
+        // truenan con error, simplemente no generan nada. `output_file` es
+        // la ruta que ya se le preguntó al operador para este caso.
+        let out_file_wide = output_file.map(to_wide);
         let doc_info = DOCINFOW {
             cbSize: std::mem::size_of::<DOCINFOW>() as i32,
             lpszDocName: PCWSTR(doc_name.as_ptr()),
-            lpszOutput: PCWSTR::null(),
+            lpszOutput: out_file_wide
+                .as_ref()
+                .map(|w| PCWSTR(w.as_ptr()))
+                .unwrap_or(PCWSTR::null()),
             lpszDatatype: PCWSTR::null(),
             fwType: 0,
         };
@@ -485,7 +495,7 @@ pub fn print_default_silent(
     };
 
     let devmode = build_devmode(&printer, orientation.as_deref(), width_mm, height_mm)?;
-    print_bitmap(&printer, devmode, &img, copies.unwrap_or(1))
+    print_bitmap(&printer, devmode, &img, copies.unwrap_or(1), None)
 }
 
 #[derive(Serialize)]
@@ -608,10 +618,55 @@ fn show_print_dialog(preferred_printer: Option<String>) -> Result<PrintDialogCho
     })
 }
 
+/// "Microsoft Print to PDF", "Microsoft XPS Document Writer" y similares
+/// son impresoras que escriben a un archivo en vez de papel — Windows las
+/// distingue por el puerto: "PORTPROMPT:" (pregunta la ruta al imprimir
+/// desde el flujo normal) o "FILE:". Si no le damos nosotros mismos una
+/// ruta de salida, el trabajo se completa "bien" mientras no genera nada
+/// visible — de ahí que pareciera fallar en silencio.
+fn is_file_output_port(port: &str) -> bool {
+    let p = port.to_uppercase();
+    p.starts_with("PORTPROMPT") || p.starts_with("FILE:")
+}
+
+/// Pide al operador dónde guardar el PDF con el diálogo nativo "Guardar
+/// como" de Windows. `Ok(None)` significa que canceló.
+fn prompt_save_pdf_path(default_file_name: &str) -> Result<Option<String>, String> {
+    const BUF_LEN: usize = 1024;
+    let mut buf: Vec<u16> = vec![0; BUF_LEN];
+    let default_wide = to_wide(default_file_name);
+    let copy_len = default_wide.len().min(BUF_LEN);
+    buf[..copy_len].copy_from_slice(&default_wide[..copy_len]);
+
+    // Doble NUL al final de cada cadena y al final de la lista, como pide
+    // la API: "Descripción\0*.patrón\0\0".
+    let filter = to_wide("Documento PDF\0*.pdf\0");
+
+    let mut ofn = OPENFILENAMEW {
+        lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
+        lpstrFilter: PCWSTR(filter.as_ptr()),
+        lpstrFile: PWSTR(buf.as_mut_ptr()),
+        nMaxFile: BUF_LEN as u32,
+        lpstrDefExt: windows::core::w!("pdf"),
+        Flags: OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_HIDEREADONLY,
+        ..Default::default()
+    };
+
+    let ok = unsafe { GetSaveFileNameW(&mut ofn) }.as_bool();
+    if !ok {
+        return Ok(None);
+    }
+
+    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    Ok(Some(String::from_utf16_lossy(&buf[..len])))
+}
+
 /// Flujo completo "profesional": abre el diálogo nativo de Windows para que
 /// el operador elija impresora/copias, y con esa elección dibuja la foto
 /// con GDI directo al tamaño de papel exacto pedido (cover-fit, sin
 /// bordes). Si el operador cancela el diálogo, no se considera un error.
+/// Si eligió "Microsoft Print to PDF" (o similar), antes pregunta dónde
+/// guardar el archivo — sin eso, esas impresoras no generan nada.
 pub fn print_with_native_dialog(
     png_base64: &str,
     preferred_printer: Option<String>,
@@ -634,8 +689,33 @@ pub fn print_with_native_dialog(
         });
     }
 
+    let printers = list_printers()?;
+    let chosen = printers.iter().find(|p| p.name == choice.printer_name);
+    let output_file = match chosen {
+        Some(p) if is_file_output_port(&p.port) => {
+            match prompt_save_pdf_path("Foto Birdcam.pdf")? {
+                Some(path) => Some(path),
+                None => {
+                    // Canceló el "Guardar como" — igual que cancelar el
+                    // diálogo de impresión, no es un error.
+                    return Ok(PrintDialogOutcome {
+                        printed: false,
+                        printer: None,
+                    });
+                }
+            }
+        }
+        _ => None,
+    };
+
     let devmode = build_devmode(&choice.printer_name, orientation.as_deref(), width_mm, height_mm)?;
-    print_bitmap(&choice.printer_name, devmode, &img, choice.copies)?;
+    print_bitmap(
+        &choice.printer_name,
+        devmode,
+        &img,
+        choice.copies,
+        output_file.as_deref(),
+    )?;
 
     Ok(PrintDialogOutcome {
         printed: true,
