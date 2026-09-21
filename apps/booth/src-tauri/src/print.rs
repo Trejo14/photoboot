@@ -4,8 +4,9 @@ use windows::core::{Error, PCWSTR, PWSTR};
 use windows::Win32::Foundation::{GlobalFree, HGLOBAL};
 use windows::Win32::Graphics::Gdi::{
     CreateDCW, DeleteDC, GetDeviceCaps, StretchDIBits, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
-    DEVMODEW, DIB_RGB_COLORS, DMORIENT_LANDSCAPE, DMORIENT_PORTRAIT, DMPAPER_USER, DM_ORIENTATION,
-    DM_OUT_BUFFER, DM_PAPERLENGTH, DM_PAPERSIZE, DM_PAPERWIDTH, HORZRES, SRCCOPY, VERTRES,
+    DEVMODEW, DIB_RGB_COLORS, DMORIENT_LANDSCAPE, DMORIENT_PORTRAIT, DMPAPER_USER, DM_COPIES,
+    DM_ORIENTATION, DM_OUT_BUFFER, DM_PAPERLENGTH, DM_PAPERSIZE, DM_PAPERWIDTH, HORZRES, SRCCOPY,
+    VERTRES,
 };
 use windows::Win32::Graphics::Printing::{
     ClosePrinter, DocumentPropertiesW, EndDocPrinter, EndPagePrinter, EnumPrintersW,
@@ -253,10 +254,6 @@ fn build_devmode(
     height_mm: Option<f64>,
 ) -> Result<Option<DEVMODEW>, String> {
     let wants_orientation = matches!(orientation, Some(o) if o != "auto");
-    let wants_size = matches!((width_mm, height_mm), (Some(w), Some(h)) if w > 0.0 && h > 0.0);
-    if !wants_orientation && !wants_size {
-        return Ok(None);
-    }
 
     let pname = to_wide(printer_name);
     let mut handle = PRINTER_HANDLE::default();
@@ -287,8 +284,16 @@ fn build_devmode(
         return Err("No se pudo leer la configuración de la impresora".to_string());
     }
 
-    // Los campos de orientación/tamaño viven en esta unión del DEVMODE.
+    // Los campos de orientación/tamaño/copias viven en esta unión del DEVMODE.
     let fields = unsafe { &mut devmode.Anonymous1.Anonymous1 };
+
+    // El driver puede traer guardado un número de copias de un trabajo
+    // anterior (algunos lo recuerdan entre impresiones). Si lo dejamos tal
+    // cual, el propio driver duplicaría cada página que ya repetimos
+    // nosotros con nuestro ciclo de StartPage — forzamos 1 aquí para que
+    // el número de copias físicas lo controle un solo lugar.
+    fields.dmCopies = 1;
+    devmode.dmFields |= DM_COPIES;
 
     if wants_orientation {
         fields.dmOrientation = if orientation == Some("landscape") {
