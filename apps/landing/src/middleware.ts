@@ -13,5 +13,5 @@ export default auth((req: NextAuthRequest) => {
 });
 
 export const config = {
-  matcher: ["/admin", "/admin/events/:path*", "/admin/licenses"],
+  matcher: ["/admin", "/admin/events/:path*", "/admin/licenses", "/admin/customers"],
 };

@@ -35,6 +35,21 @@ function generateOrderReference(method: string): string {
   return `${prefix}-${randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
+export interface Customer {
+  email: string;
+  name: string | null;
+  plan: string;
+  registered: boolean;
+  licenses: {
+    licenseKey: string;
+    plan: string;
+    status: string;
+    expiresAt: Date | null;
+  }[];
+  pendingOrders: number;
+  firstSeenAt: Date;
+}
+
 @Injectable()
 export class LicensesService {
   constructor(
@@ -229,6 +244,86 @@ export class LicensesService {
           )
         : null,
     }));
+  }
+
+  /**
+   * Clientes = cualquier correo que haya iniciado sesión (User), comprado
+   * (License) o pedido un pago manual (ManualOrder), agrupado por correo.
+   */
+  async listCustomers(): Promise<Customer[]> {
+    const [users, licenses, pendingOrders] = await Promise.all([
+      this.prisma.user.findMany({
+        select: { email: true, name: true, createdAt: true },
+      }),
+      this.prisma.license.findMany({
+        where: { email: { not: null } },
+        orderBy: { createdAt: "desc" },
+        select: {
+          email: true,
+          licenseKey: true,
+          plan: true,
+          status: true,
+          expiresAt: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.manualOrder.findMany({
+        where: { status: "pending" },
+        select: { email: true, createdAt: true },
+      }),
+    ]);
+
+    const byEmail = new Map<string, Customer>();
+    const touch = (rawEmail: string, seenAt: Date): Customer => {
+      const email = rawEmail.toLowerCase().trim();
+      let customer = byEmail.get(email);
+      if (!customer) {
+        customer = {
+          email,
+          name: null,
+          plan: "free",
+          registered: false,
+          licenses: [],
+          pendingOrders: 0,
+          firstSeenAt: seenAt,
+        };
+        byEmail.set(email, customer);
+      } else if (seenAt < customer.firstSeenAt) {
+        customer.firstSeenAt = seenAt;
+      }
+      return customer;
+    };
+
+    for (const user of users) {
+      const customer = touch(user.email, user.createdAt);
+      customer.name = user.name;
+      customer.registered = true;
+    }
+
+    const planRank: Record<string, number> = { free: 0, pro: 1, lifetime: 2 };
+    const now = Date.now();
+    for (const { email, createdAt, ...license } of licenses) {
+      if (!email) continue;
+      const customer = touch(email, createdAt);
+      customer.licenses.push(license);
+      const usable =
+        license.status === "active" &&
+        (!license.expiresAt || license.expiresAt.getTime() >= now);
+      if (
+        usable &&
+        (planRank[license.plan] ?? 0) > (planRank[customer.plan] ?? 0)
+      ) {
+        customer.plan = license.plan;
+      }
+    }
+
+    for (const order of pendingOrders) {
+      touch(order.email, order.createdAt).pendingOrders += 1;
+    }
+
+    return [...byEmail.values()].sort(
+      (a, b) => b.firstSeenAt.getTime() - a.firstSeenAt.getTime(),
+    );
   }
 
   async revoke(id: string) {

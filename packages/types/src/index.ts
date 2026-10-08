@@ -170,3 +170,23 @@ export interface ManualOrderSummary {
   createdAt: string;
   paidAt: string | null;
 }
+
+// --- Clientes (panel de admin) ---
+export interface CustomerLicense {
+  licenseKey: string;
+  plan: LicensePlan;
+  status: LicenseStatus;
+  expiresAt: string | null;
+}
+
+export interface CustomerSummary {
+  email: string;
+  name: string | null;
+  // Plan vigente: el de su mejor licencia activa, o "free" si no tiene.
+  plan: LicensePlan;
+  // true si inició sesión / creó cuenta (web o app); false si solo compró.
+  registered: boolean;
+  licenses: CustomerLicense[];
+  pendingOrders: number;
+  firstSeenAt: string;
+}

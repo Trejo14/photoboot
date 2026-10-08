@@ -7,6 +7,8 @@ import { PrismaService } from "../prisma/prisma.service";
 export interface JwtPayload {
   sub: string;
   email: string;
+  // true solo si el token salió de verificar un código enviado al correo.
+  ev?: boolean;
 }
 
 export interface AuthenticatedUser {
@@ -14,6 +16,7 @@ export interface AuthenticatedUser {
   email: string;
   name: string | null;
   organizationId: string | null;
+  emailVerified: boolean;
 }
 
 @Injectable()
@@ -41,6 +44,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: user.email,
       name: user.name,
       organizationId: user.organizationId,
+      emailVerified: payload.ev === true,
     };
   }
 }

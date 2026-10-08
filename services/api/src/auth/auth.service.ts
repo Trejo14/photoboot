@@ -28,8 +28,15 @@ export class AuthService {
     ).join("");
   }
 
-  private signToken(user: { id: string; email: string }): string {
-    return this.jwt.sign({ sub: user.id, email: user.email });
+  private signToken(
+    user: { id: string; email: string },
+    emailVerified = false
+  ): string {
+    return this.jwt.sign({
+      sub: user.id,
+      email: user.email,
+      ...(emailVerified ? { ev: true } : {}),
+    });
   }
 
   async register(
@@ -200,7 +207,7 @@ export class AuthService {
       });
     }
 
-    const token = this.signToken(user);
+    const token = this.signToken(user, true);
 
     return {
       token,
@@ -208,7 +215,7 @@ export class AuthService {
     };
   }
 
-  async getProfile(userId: string) {
+  async getProfile(userId: string, emailVerified = false) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { organization: true },
@@ -216,7 +223,23 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException("Usuario no encontrado");
     }
+    // Las claves compradas con este correo solo se muestran si la sesión
+    // demostró que el correo es suyo (login por código). El registro con
+    // contraseña no verifica el correo, así que ahí no se exponen.
+    const licenses = emailVerified
+      ? await this.prisma.license.findMany({
+          where: { email: { equals: user.email, mode: "insensitive" } },
+          orderBy: { createdAt: "desc" },
+          select: {
+            licenseKey: true,
+            plan: true,
+            status: true,
+            expiresAt: true,
+          },
+        })
+      : [];
     return {
+      licenses,
       id: user.id,
       email: user.email,
       name: user.name,

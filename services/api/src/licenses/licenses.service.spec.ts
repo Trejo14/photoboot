@@ -69,6 +69,8 @@ function createPrismaMock() {
       update: mockFn(),
       findUnique: mockFn(),
     },
+    user: { findMany: mockFn() },
+    manualOrder: { findMany: mockFn() },
   };
 }
 
@@ -220,6 +222,44 @@ describe("LicensesService", () => {
       expect(prisma.licenseActivation.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: activation.id } }),
       );
+    });
+  });
+
+  describe("listCustomers", () => {
+    it("merges accounts, purchases and pending orders by email", async () => {
+      prisma.user.findMany.mockResolvedValue([
+        { email: "ana@example.com", name: "Ana", createdAt: new Date(2000) },
+      ]);
+      prisma.license.findMany.mockResolvedValue([
+        makeLicense({ email: "Ana@Example.com", createdAt: new Date(1000) }),
+        makeLicense({
+          email: "luis@example.com",
+          licenseKey: "BIRD-1111-2222-3333-4444",
+          status: "revoked",
+          createdAt: new Date(3000),
+        }),
+      ]);
+      prisma.manualOrder.findMany.mockResolvedValue([
+        { email: "eva@example.com", createdAt: new Date(4000) },
+      ]);
+
+      const customers = await service.listCustomers();
+
+      expect(customers.map((c) => c.email)).toEqual([
+        "eva@example.com",
+        "luis@example.com",
+        "ana@example.com",
+      ]);
+      const [eva, luis, ana] = customers;
+      expect(eva).toMatchObject({ plan: "free", pendingOrders: 1 });
+      expect(luis).toMatchObject({ plan: "free", registered: false });
+      expect(ana).toMatchObject({
+        name: "Ana",
+        plan: "pro",
+        registered: true,
+        firstSeenAt: new Date(1000),
+      });
+      expect(ana?.licenses[0]?.licenseKey).toBe("BIRD-AAAA-BBBB-CCCC-DDDD");
     });
   });
 

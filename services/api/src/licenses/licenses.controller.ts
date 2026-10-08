@@ -39,6 +39,12 @@ export class LicensesController {
   }
 
   @UseGuards(AdminKeyGuard)
+  @Get("customers")
+  listCustomers() {
+    return this.licenses.listCustomers();
+  }
+
+  @UseGuards(AdminKeyGuard)
   @Post(":id/revoke")
   revoke(@Param("id") id: string) {
     return this.licenses.revoke(id);

@@ -30,6 +30,12 @@ export default async function AdminDashboardPage() {
         </div>
         <div className="flex gap-2">
           <Link
+            href="/admin/customers"
+            className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            Clientes
+          </Link>
+          <Link
             href="/admin/licenses"
             className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
           >

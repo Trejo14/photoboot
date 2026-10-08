@@ -46,7 +46,7 @@ export function Navbar() {
 
         <div className="hidden items-center gap-3 md:flex">
           <a
-            href="#descargar"
+            href="/cuenta"
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             Iniciar sesión
@@ -81,7 +81,7 @@ export function Navbar() {
               </a>
             ))}
             <a
-              href="#descargar"
+              href="/cuenta"
               onClick={() => setOpen(false)}
               className="rounded-lg px-3 py-3 text-base font-medium text-foreground transition-colors hover:bg-white/5"
             >
