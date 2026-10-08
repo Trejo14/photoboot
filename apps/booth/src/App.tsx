@@ -272,14 +272,13 @@ export function App() {
     if (screen === "imprimiendo" && state.context.composedBlob) {
       const blob = state.context.composedBlob;
       void (async () => {
-        const url = URL.createObjectURL(blob);
         try {
           // Se muestra desde antes de llamar a printImage(): para el modo
           // "dialog" la promesa no se resuelve hasta que el operador cierra
           // el diálogo de impresión (imprime o cancela), así que este
           // mensaje es lo único visible durante todo ese tiempo.
           setPrintFeedback("Abriendo el diálogo de impresión…");
-          const mode = await printImage(blob, url, {
+          const mode = await printImage(blob, {
             printer: settings?.printerName,
             copies: settings?.printCopies,
             orientation: settings?.printOrientation,
@@ -299,7 +298,6 @@ export function App() {
           });
         } finally {
           setPrintFeedback(null);
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
       })();
     }

@@ -51,7 +51,7 @@ export function PrintSettingsPanel({
     setPrinting(true);
     setResult(null);
     try {
-      const mode = await printImage(lastPhoto.blob, lastPhoto.imageUrl, {
+      const mode = await printImage(lastPhoto.blob, {
         printer: settings.printerName,
         copies: settings.printCopies,
         orientation: settings.printOrientation,

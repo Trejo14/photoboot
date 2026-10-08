@@ -8,11 +8,10 @@ import { errorMessage } from "@/lib/errors";
 interface Props {
   photoId: string | null;
   blob: Blob;
-  imageUrl: string;
   onDone: () => void;
 }
 
-export function DeliveryScreen({ photoId, blob, imageUrl, onDone }: Props) {
+export function DeliveryScreen({ photoId, blob, onDone }: Props) {
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [printStatus, setPrintStatus] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
@@ -30,7 +29,7 @@ export function DeliveryScreen({ photoId, blob, imageUrl, onDone }: Props) {
     setPrinting(true);
     setPrintStatus("Enviando a impresora…");
     try {
-      const mode = await printImage(blob, imageUrl);
+      const mode = await printImage(blob);
       setPrintStatus(
         mode === "thermal"
           ? "Impreso en impresora térmica"
