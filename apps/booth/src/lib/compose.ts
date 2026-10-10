@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import { env } from "./env";
+import { QR_ENABLED } from "./features";
 import {
   getFormatById,
   getFormatCanvasSize,
@@ -131,24 +132,26 @@ export async function composeFrame(
     }
   }
 
-  try {
-    const galleryUrl = `${env.GALLERY_URL}/p/${photoId}`;
-    const qrDataUrl = await QRCode.toDataURL(galleryUrl, {
-      width: qrSlot.size,
-      margin: 1,
-      color: { dark: "#000000", light: "#ffffff" },
-    });
+  if (QR_ENABLED) {
+    try {
+      const galleryUrl = `${env.GALLERY_URL}/p/${photoId}`;
+      const qrDataUrl = await QRCode.toDataURL(galleryUrl, {
+        width: qrSlot.size,
+        margin: 1,
+        color: { dark: "#000000", light: "#ffffff" },
+      });
 
-    const qrImg = await loadImage(qrDataUrl);
-    ctx.drawImage(qrImg, qrSlot.x, qrSlot.y, qrSlot.size, qrSlot.size);
-  } catch {
-    // QR generation failed - draw a placeholder
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(qrSlot.x, qrSlot.y, qrSlot.size, qrSlot.size);
-    ctx.fillStyle = "#000";
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("QR", qrSlot.x + qrSlot.size / 2, qrSlot.y + qrSlot.size / 2 + 4);
+      const qrImg = await loadImage(qrDataUrl);
+      ctx.drawImage(qrImg, qrSlot.x, qrSlot.y, qrSlot.size, qrSlot.size);
+    } catch {
+      // QR generation failed - draw a placeholder
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(qrSlot.x, qrSlot.y, qrSlot.size, qrSlot.size);
+      ctx.fillStyle = "#000";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("QR", qrSlot.x + qrSlot.size / 2, qrSlot.y + qrSlot.size / 2 + 4);
+    }
   }
 
   return canvasToJpeg(canvas);

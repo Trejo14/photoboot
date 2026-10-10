@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { env } from "@/lib/env";
+import { QR_ENABLED } from "@/lib/features";
 
 interface Props {
   photoId: string | null;
@@ -18,7 +19,7 @@ export function AgradecimientoScreen({
   onTimeoutRef.current = onTimeout;
 
   useEffect(() => {
-    if (!photoId) return;
+    if (!QR_ENABLED || !photoId) return;
     const url = `${env.GALLERY_URL}/p/${photoId}`;
     void QRCode.toDataURL(url, { width: 300, margin: 1 })
       .then(setQrUrl)
@@ -41,7 +42,7 @@ export function AgradecimientoScreen({
         </p>
       </div>
 
-      {qrUrl ? (
+      {!QR_ENABLED ? null : qrUrl ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl bg-white p-6 shadow-lg">
           <img src={qrUrl} alt="QR de descarga" className="h-64 w-64" />
           <p className="text-sm text-black/60">Escanea para descargar tu foto</p>

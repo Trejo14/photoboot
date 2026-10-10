@@ -117,6 +117,29 @@ async function buildDoubleSheet(blob: Blob, stacked = false): Promise<Blob> {
   });
 }
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(new Error("No se pudo leer la imagen"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Guarda una copia de la foto final en la carpeta Descargas del equipo
+// (subcarpeta "Birdcam"). Devuelve la ruta, o `null` fuera de la app de
+// escritorio, donde no hay acceso al sistema de archivos.
+export async function savePhotoToDownloads(blob: Blob): Promise<string | null> {
+  if (!isTauri) return null;
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return invoke<string>("save_photo_to_downloads", {
+    jpegBase64: await blobToBase64(blob),
+    fileName: `birdcam-${stamp}.jpg`,
+  });
+}
+
 export async function printThermal(
   blob: Blob,
   options: PrintOptions = {},

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { Button } from "@photobooth/ui";
 import { env } from "@/lib/env";
+import { QR_ENABLED } from "@/lib/features";
 import { printImage } from "@/lib/print";
 import { errorMessage } from "@/lib/errors";
 
@@ -17,7 +18,7 @@ export function DeliveryScreen({ photoId, blob, onDone }: Props) {
   const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
-    if (!photoId) return;
+    if (!QR_ENABLED || !photoId) return;
     const url = `${env.GALLERY_URL}/photos/${photoId}`;
     void QRCode.toDataURL(url, { width: 256, margin: 1 })
       .then(setQrUrl)
@@ -45,7 +46,7 @@ export function DeliveryScreen({ photoId, blob, onDone }: Props) {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-background p-4">
       <h2 className="text-2xl font-bold">¡Listo!</h2>
-      {qrUrl ? (
+      {!QR_ENABLED ? null : qrUrl ? (
         <div className="flex flex-col items-center gap-2 rounded-lg bg-white p-4">
           <img src={qrUrl} alt="QR de descarga" className="h-56 w-56" />
           <p className="text-xs text-black">Escanea para descargar tu foto</p>

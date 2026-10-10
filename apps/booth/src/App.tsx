@@ -42,7 +42,7 @@ import {
 } from "@/components/exit-confirm-modal";
 import { BoothLayout } from "@/components/booth-layout";
 import { composeFrame, composePlain } from "@/lib/compose";
-import { printImage } from "@/lib/print";
+import { printImage, savePhotoToDownloads } from "@/lib/print";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function runBootSequence(send: (event: any) => void) {
@@ -378,6 +378,11 @@ export function App() {
         console.error("No se pudo aplicar la marca de agua de prueba:", err);
       }
     }
+
+    // Copia local en Descargas; si falla no debe frenar la sesión.
+    void savePhotoToDownloads(composedBlob).catch((err) =>
+      console.error("No se pudo guardar la foto en Descargas:", err),
+    );
 
     const entry = await enqueuePhoto(
       composedBlob,
