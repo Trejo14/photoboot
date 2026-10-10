@@ -1,5 +1,11 @@
 import QRCode from "qrcode";
 import { env } from "./env";
+import { QR_ENABLED } from "./features";
+import {
+  getFormatById,
+  getFormatCanvasSize,
+  type PhotoFormat,
+} from "./formats";
 import type { FrameTemplate } from "./frame-templates";
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -51,12 +57,50 @@ export interface ComposeResult {
   blob: Blob;
 }
 
+function canvasToJpeg(canvas: HTMLCanvasElement): Promise<ComposeResult> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("No se pudo generar la imagen compuesta"));
+          return;
+        }
+        const imageUrl = URL.createObjectURL(blob);
+        resolve({ imageUrl, blob });
+      },
+      "image/jpeg",
+      0.95
+    );
+  });
+}
+
 export async function composeFrame(
   frames: Blob[],
   template: FrameTemplate,
   photoId: string
 ): Promise<ComposeResult> {
-  const { canvasSize, photoSlots, qrSlot, backgroundImageUrl } = template;
+  const { backgroundImageUrl } = template;
+
+  // El lienzo final siempre tiene la medida de impresión del formato; el
+  // diseño (venga del tamaño que venga) se escala para llenarlo completo y
+  // los huecos de foto y el QR se escalan igual, para caer donde el diseño
+  // los marca.
+  const format = getFormatById(template.compatibleFormatId);
+  const canvasSize = format ? getFormatCanvasSize(format) : template.canvasSize;
+  const scaleX = canvasSize.width / template.canvasSize.width;
+  const scaleY = canvasSize.height / template.canvasSize.height;
+  const photoSlots = template.photoSlots.map((s) => ({
+    x: Math.round(s.x * scaleX),
+    y: Math.round(s.y * scaleY),
+    width: Math.round(s.width * scaleX),
+    height: Math.round(s.height * scaleY),
+  }));
+  const qrSize = Math.round(template.qrSlot.size * Math.min(scaleX, scaleY));
+  const qrSlot = {
+    x: Math.round((template.qrSlot.x + template.qrSlot.size / 2) * scaleX - qrSize / 2),
+    y: Math.round((template.qrSlot.y + template.qrSlot.size / 2) * scaleY - qrSize / 2),
+    size: qrSize,
+  };
 
   const canvas = document.createElement("canvas");
   canvas.width = canvasSize.width;
@@ -88,38 +132,70 @@ export async function composeFrame(
     }
   }
 
-  try {
-    const galleryUrl = `${env.GALLERY_URL}/p/${photoId}`;
-    const qrDataUrl = await QRCode.toDataURL(galleryUrl, {
-      width: qrSlot.size,
-      margin: 1,
-      color: { dark: "#000000", light: "#ffffff" },
-    });
+  if (QR_ENABLED) {
+    try {
+      const galleryUrl = `${env.GALLERY_URL}/p/${photoId}`;
+      const qrDataUrl = await QRCode.toDataURL(galleryUrl, {
+        width: qrSlot.size,
+        margin: 1,
+        color: { dark: "#000000", light: "#ffffff" },
+      });
 
-    const qrImg = await loadImage(qrDataUrl);
-    ctx.drawImage(qrImg, qrSlot.x, qrSlot.y, qrSlot.size, qrSlot.size);
-  } catch {
-    // QR generation failed - draw a placeholder
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(qrSlot.x, qrSlot.y, qrSlot.size, qrSlot.size);
-    ctx.fillStyle = "#000";
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("QR", qrSlot.x + qrSlot.size / 2, qrSlot.y + qrSlot.size / 2 + 4);
+      const qrImg = await loadImage(qrDataUrl);
+      ctx.drawImage(qrImg, qrSlot.x, qrSlot.y, qrSlot.size, qrSlot.size);
+    } catch {
+      // QR generation failed - draw a placeholder
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(qrSlot.x, qrSlot.y, qrSlot.size, qrSlot.size);
+      ctx.fillStyle = "#000";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("QR", qrSlot.x + qrSlot.size / 2, qrSlot.y + qrSlot.size / 2 + 4);
+    }
   }
 
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(new Error("No se pudo generar la imagen compuesta"));
-          return;
-        }
-        const imageUrl = URL.createObjectURL(blob);
-        resolve({ imageUrl, blob });
-      },
-      "image/jpeg",
-      0.95
+  return canvasToJpeg(canvas);
+}
+
+/**
+ * Composición "sin marco": acomoda las fotos sobre fondo blanco en la
+ * medida de impresión del formato (una sola a hoja completa, tiras
+ * apiladas, o cuadrícula de 2x2).
+ */
+export async function composePlain(
+  frames: Blob[],
+  format: PhotoFormat
+): Promise<ComposeResult> {
+  const { width, height } = getFormatCanvasSize(format);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("No se pudo crear el canvas");
+
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, width, height);
+
+  const photoImages = await Promise.all(frames.map(blobToImage));
+  const count = photoImages.length;
+  const cols = format.layout === "grid" ? 2 : 1;
+  const rows = Math.ceil(count / cols);
+  const margin = count === 1 ? 0 : Math.round(Math.min(width, height) * 0.04);
+  const cellW = (width - margin * (cols + 1)) / cols;
+  const cellH = (height - margin * (rows + 1)) / rows;
+
+  photoImages.forEach((img, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    drawImageCover(
+      ctx,
+      img,
+      Math.round(margin + col * (cellW + margin)),
+      Math.round(margin + row * (cellH + margin)),
+      Math.round(cellW),
+      Math.round(cellH)
     );
   });
+
+  return canvasToJpeg(canvas);
 }

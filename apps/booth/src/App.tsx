@@ -41,8 +41,8 @@ import {
   type ExitConfirmMode,
 } from "@/components/exit-confirm-modal";
 import { BoothLayout } from "@/components/booth-layout";
-import { composeFrame } from "@/lib/compose";
-import { printImage } from "@/lib/print";
+import { composeFrame, composePlain } from "@/lib/compose";
+import { printImage, savePhotoToDownloads } from "@/lib/print";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function runBootSequence(send: (event: any) => void) {
@@ -113,22 +113,6 @@ async function runBootSequence(send: (event: any) => void) {
     eventName,
     authenticated: !!authenticatedEmail,
     userEmail: authenticatedEmail,
-  });
-}
-
-function loadImageBlob(blob: Blob): Promise<HTMLImageElement> {
-  const url = URL.createObjectURL(blob);
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("No se pudo cargar la imagen"));
-    };
-    img.src = url;
   });
 }
 
@@ -370,25 +354,12 @@ export function App() {
         const result = await composeFrame(frames, frameTemplate, photoId);
         composedImageUrl = result.imageUrl;
         composedBlob = result.blob;
-      } else if (frames.length === 1) {
-        composedBlob = frames[0]!;
-        composedImageUrl = URL.createObjectURL(composedBlob);
+      } else if (format) {
+        const result = await composePlain(frames, format);
+        composedImageUrl = result.imageUrl;
+        composedBlob = result.blob;
       } else {
-        const canvas = document.createElement("canvas");
-        canvas.width = 600;
-        canvas.height = 200 * frames.length;
-        const ctx = canvas.getContext("2d")!;
-        for (let i = 0; i < frames.length; i++) {
-          const img = await loadImageBlob(frames[i]!);
-          ctx.drawImage(img, 0, i * 200, 600, 200);
-        }
-        composedBlob = await new Promise<Blob>((resolve, reject) => {
-          canvas.toBlob(
-            (b) => (b ? resolve(b) : reject(new Error("toBlob falló"))),
-            "image/jpeg",
-            0.95,
-          );
-        });
+        composedBlob = frames[0]!;
         composedImageUrl = URL.createObjectURL(composedBlob);
       }
     } catch (err) {
@@ -407,6 +378,11 @@ export function App() {
         console.error("No se pudo aplicar la marca de agua de prueba:", err);
       }
     }
+
+    // Copia local en Descargas; si falla no debe frenar la sesión.
+    void savePhotoToDownloads(composedBlob).catch((err) =>
+      console.error("No se pudo guardar la foto en Descargas:", err),
+    );
 
     const entry = await enqueuePhoto(
       composedBlob,

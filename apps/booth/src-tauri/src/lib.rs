@@ -56,6 +56,7 @@ pub fn run() {
             print_with_native_dialog,
             emit_admin_unlock,
             get_device_id,
+            save_photo_to_downloads,
             open_url
         ])
         .run(tauri::generate_context!())
@@ -146,6 +147,41 @@ fn get_device_id(app: tauri::AppHandle) -> Result<String, String> {
     let _ = fs::create_dir_all(&app_dir);
     let _ = fs::write(&id_file, &new_id);
     Ok(new_id)
+}
+
+// Guarda la foto final en Descargas\Birdcam y devuelve la ruta completa.
+#[tauri::command]
+fn save_photo_to_downloads(
+    app: tauri::AppHandle,
+    jpeg_base64: String,
+    file_name: String,
+) -> Result<String, String> {
+    use base64::Engine;
+    use std::fs;
+
+    // El nombre llega del frontend: solo se aceptan caracteres seguros para
+    // que nunca pueda salirse de la carpeta de destino.
+    let safe_name: String = file_name
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        .collect();
+    if safe_name.is_empty() || safe_name.starts_with('.') {
+        return Err("Nombre de archivo inválido".into());
+    }
+
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&jpeg_base64)
+        .map_err(|e| format!("Imagen base64 inválida: {e}"))?;
+
+    let dir = app
+        .path()
+        .download_dir()
+        .map_err(|e| e.to_string())?
+        .join("Birdcam");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join(safe_name);
+    fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
