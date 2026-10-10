@@ -183,7 +183,15 @@ export function printViaSystemDialog(imageUrl: string): Promise<void> {
       #print-photo-container { display: none; }
       /* Sin márgenes de página: si no, el motor de impresión encoge la
          hoja para dejarles lugar y las fotos ya no salen a su medida. */
-      @page { margin: 0; }
+      @page {
+        margin: 0;
+        /* Si en el diálogo se eligen márgenes, el navegador aprovecha ese
+           espacio para su encabezado/pie (fecha, título, "tauri.localhost",
+           paginado). Al declarar cajas de margen propias — aunque vacías —
+           deja de dibujar los suyos. */
+        @top-left { content: ""; }
+        @bottom-left { content: ""; }
+      }
       @media print {
         html, body {
           margin: 0 !important;
