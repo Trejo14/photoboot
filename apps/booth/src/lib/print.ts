@@ -1,6 +1,7 @@
 import { invoke, isTauri } from "./tauri";
 import type { PrintOrientation, PrintPaperSize } from "./settings";
 import { resolvePaperMm } from "./paper-sizes";
+import { mmToPx, pxToMm } from "./formats";
 
 export interface PrinterInfo {
   name: string;
@@ -82,37 +83,30 @@ function loadBlobImage(blob: Blob): Promise<HTMLImageElement> {
   });
 }
 
-// Qué tanto de la hoja aprovecha una imagen de proporción `aspect`
-// (ancho/alto) al ajustarla completa dentro de una hoja `pageAspect`.
-function fitRatio(aspect: number, pageAspect: number): number {
-  return Math.min(aspect / pageAspect, pageAspect / aspect);
-}
+// Franja blanca entre las dos copias, para cortar sin comerse el marco.
+const CUT_GAP_MM = 1;
 
 // Toda impresión saca la foto DOS veces en la misma hoja (como las tiras
 // clásicas de photobooth, que se cortan a la mitad), sea cual sea el
-// formato elegido. Las dos copias van lado a lado o una sobre otra, lo que
-// aproveche mejor la hoja; `pageAspect` es ancho/alto del papel.
-async function buildDoubleSheet(blob: Blob, pageAspect: number): Promise<Blob> {
+// formato elegido. Las dos copias van siempre paralelas, lado a lado en
+// horizontal; solo el rollo angosto de una térmica (`stacked`) las lleva
+// una sobre otra.
+async function buildDoubleSheet(blob: Blob, stacked = false): Promise<Blob> {
   const img = await loadBlobImage(blob);
   const w = img.naturalWidth;
   const h = img.naturalHeight;
-  // Franja blanca entre las dos copias, para cortar sin comerse el marco.
-  const gap = Math.round(Math.min(w, h) * 0.04);
-
-  const sideBySide =
-    fitRatio((w * 2 + gap) / h, pageAspect) >
-    fitRatio(w / (h * 2 + gap), pageAspect);
+  const gap = mmToPx(CUT_GAP_MM);
 
   const canvas = document.createElement("canvas");
-  canvas.width = sideBySide ? w * 2 + gap : w;
-  canvas.height = sideBySide ? h : h * 2 + gap;
+  canvas.width = stacked ? w : w * 2 + gap;
+  canvas.height = stacked ? h * 2 + gap : h;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("No se pudo crear el canvas");
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0);
-  if (sideBySide) ctx.drawImage(img, w + gap, 0);
-  else ctx.drawImage(img, 0, h + gap);
+  if (stacked) ctx.drawImage(img, 0, h + gap);
+  else ctx.drawImage(img, w + gap, 0);
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -121,19 +115,6 @@ async function buildDoubleSheet(blob: Blob, pageAspect: number): Promise<Blob> {
       0.95,
     );
   });
-}
-
-// Proporción (ancho/alto) de la hoja según los ajustes del operador; sin
-// tamaño de papel configurado se asume una hoja tipo 4x6.
-function pageAspectFor(options: PrintOptions): number {
-  const mm = resolvePaperMm(
-    options.paperSize ?? "auto",
-    options.customWidthMm ?? null,
-    options.customHeightMm ?? null,
-  );
-  const short = mm ? Math.min(mm.widthMm, mm.heightMm) : 2;
-  const long = mm ? Math.max(mm.widthMm, mm.heightMm) : 3;
-  return options.orientation === "landscape" ? long / short : short / long;
 }
 
 export async function printThermal(
@@ -155,6 +136,10 @@ export async function printThermal(
 // sin abrir nada. Se inyecta la foto en el propio documento y una hoja de
 // estilo "@media print" oculta todo lo demás solo durante la impresión;
 // fuera de eso, el elemento nunca se ve.
+//
+// La hoja sale a su tamaño físico real: la foto se compone a PRINT_DPI, así
+// que sus píxeles ya dicen cuántos milímetros mide. Solo se encoge (sin
+// deformarse) cuando el papel cargado es más chico que la hoja.
 export function printViaSystemDialog(imageUrl: string): Promise<void> {
   return new Promise((resolve) => {
     const container = document.createElement("div");
@@ -165,8 +150,17 @@ export function printViaSystemDialog(imageUrl: string): Promise<void> {
     document.body.appendChild(container);
 
     const style = document.createElement("style");
-    style.textContent = `
+    // Oculto desde ya; las reglas de impresión se completan en applySize()
+    // cuando la imagen cargó y se conoce su tamaño.
+    style.textContent = "#print-photo-container { display: none; }";
+    const applySize = () => {
+      const widthMm = pxToMm(img.naturalWidth).toFixed(2);
+      const aspect = (img.naturalWidth / img.naturalHeight).toFixed(4);
+      style.textContent = `
       #print-photo-container { display: none; }
+      /* Sin márgenes de página: si no, el motor de impresión encoge la
+         hoja para dejarles lugar y las fotos ya no salen a su medida. */
+      @page { margin: 0; }
       @media print {
         html, body {
           margin: 0 !important;
@@ -179,18 +173,16 @@ export function printViaSystemDialog(imageUrl: string): Promise<void> {
           position: static;
           width: 100%;
         }
-        /* Ajuste completo a UNA hoja (en impresión, 100vh = alto de la
-           página): la hoja doble puede ser más alta que el papel, y con
-           solo "width: 100%" la segunda copia se partía a otra página. */
+        /* En impresión, 100vw/100vh = ancho/alto de la página: el tope
+           evita que una hoja más grande que el papel se parta en dos. */
         #print-photo-container img {
           display: block;
-          width: 100%;
-          height: 97vh;
-          object-fit: contain;
-          object-position: center top;
+          width: min(${widthMm}mm, 100vw, calc(99vh * ${aspect}));
+          height: auto;
         }
       }
     `;
+    };
     document.head.appendChild(style);
 
     let done = false;
@@ -211,8 +203,12 @@ export function printViaSystemDialog(imageUrl: string): Promise<void> {
       // de abrir el diálogo — si no, a veces sale la hoja en blanco.
       requestAnimationFrame(() => window.print());
     }
-    if (img.complete) triggerPrint();
-    else img.onload = triggerPrint;
+    function start() {
+      applySize();
+      triggerPrint();
+    }
+    if (img.complete) start();
+    else img.onload = start;
   });
 }
 
@@ -290,13 +286,13 @@ export async function printImage(
       : printers.find((p) => p.thermal);
     if (thermal) {
       // Rollo angosto y continuo: las dos copias siempre una sobre otra.
-      const sheet = await buildDoubleSheet(blob, 0);
+      const sheet = await buildDoubleSheet(blob, true);
       await printThermal(sheet, { ...options, printer: thermal.name });
       return "thermal";
     }
   }
 
-  const sheet = await buildDoubleSheet(blob, pageAspectFor(options));
+  const sheet = await buildDoubleSheet(blob);
   const sheetUrl = URL.createObjectURL(sheet);
   try {
     await printViaSystemDialog(sheetUrl);

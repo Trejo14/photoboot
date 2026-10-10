@@ -1,4 +1,5 @@
 import { isTauri } from "./tauri";
+import { getFormatByPhotoCount, type PhotoFormat } from "./formats";
 import type { FrameTemplate, PhotoSlot, QrSlot } from "./frame-templates";
 
 export type FrameSource = "system" | "custom";
@@ -14,22 +15,34 @@ interface Box {
   h: number;
 }
 
+type HoleKind = "transparent" | "white";
+
 // Mismo algoritmo que scripts/process-frames.mjs (que genera los marcos del
 // sistema en build-time con `sharp`), pero corriendo en el navegador sobre
 // un <canvas> para que un marco subido por el operador se procese al
-// momento, sin paso de build. La convención es la misma: el operador dibuja
-// rectángulos BLANCOS SÓLIDOS en su imagen donde quiere que aparezcan las
-// fotos — el sistema los detecta y los vuelve transparentes.
+// momento, sin paso de build. Los huecos para las fotos pueden venir de dos
+// formas en el diseño: ya recortados (zonas TRANSPARENTES del PNG) o
+// marcados con rectángulos BLANCOS SÓLIDOS, que el sistema vuelve
+// transparentes.
 function detectBoxes(
   data: Uint8ClampedArray,
   width: number,
   height: number,
   minArea: number,
+  kind: HoleKind,
 ): Box[] {
-  const isWhite = (x: number, y: number) => {
-    const i = (y * width + x) * 4;
-    return data[i]! > 248 && data[i + 1]! > 248 && data[i + 2]! > 248;
-  };
+  const isWhite =
+    kind === "transparent"
+      ? (x: number, y: number) => data[(y * width + x) * 4 + 3]! < 32
+      : (x: number, y: number) => {
+          const i = (y * width + x) * 4;
+          return (
+            data[i + 3]! > 200 &&
+            data[i]! > 248 &&
+            data[i + 1]! > 248 &&
+            data[i + 2]! > 248
+          );
+        };
   const stride = 4;
   const visited = new Uint8Array(width * height);
   const boxes: Box[] = [];
@@ -161,16 +174,33 @@ function loadImage(file: File): Promise<HTMLImageElement> {
 
 export class FrameDetectionError extends Error {}
 
+// Se queda solo con los huecos que de verdad son para fotos: descarta
+// regiones que abarcan casi toda la imagen (un fondo transparente o blanco
+// alrededor del diseño) y las que son mucho más chicas que el hueco mayor
+// (adornos, textos, logos).
+function pickPhotoHoles(boxes: Box[], width: number, height: number): Box[] {
+  const candidates = boxes
+    .filter((b) => b.w * b.h < width * height * 0.9)
+    .sort((a, b) => b.w * b.h - a.w * a.h);
+  const largest = candidates[0];
+  if (!largest) return [];
+  return candidates.filter((b) => b.w * b.h >= largest.w * largest.h * 0.35);
+}
+
 /**
- * Procesa una imagen subida por el operador: detecta los rectángulos
- * blancos (huecos para las fotos), los vuelve transparentes, y arma un
- * FrameTemplate listo para usar en el compositor — igual que los marcos
- * del sistema, pero generado al vuelo en vez de en build-time.
+ * Procesa una imagen subida por el operador: detecta dónde van las fotos
+ * según el propio diseño (huecos transparentes o rectángulos blancos) y
+ * arma un FrameTemplate listo para usar en el compositor — igual que los
+ * marcos del sistema, pero generado al vuelo en vez de en build-time.
+ *
+ * El número de huecos detectados decide a qué formato pertenece el marco
+ * (1, 2, 3 o 4 fotos); `preferredFormat` solo se usa para desempatar
+ * cuando el diseño trae más regiones candidatas de las esperadas.
  */
 export async function processCustomFrameImage(
   file: File,
-  opts: { name: string; compatibleFormatId: string; photoCount: number },
-): Promise<{ template: FrameTemplate; pngDataUrl: string }> {
+  opts: { name: string; preferredFormat: PhotoFormat },
+): Promise<{ template: FrameTemplate; format: PhotoFormat }> {
   const img = await loadImage(file);
 
   const scale = Math.min(1, TARGET_LONG_SIDE / Math.max(img.width, img.height));
@@ -186,13 +216,37 @@ export async function processCustomFrameImage(
 
   const imageData = ctx.getImageData(0, 0, width, height);
   const minArea = width * height * 0.03;
-  let boxes = detectBoxes(imageData.data, width, height, minArea);
-  boxes.sort((a, b) => b.w * b.h - a.w * a.h);
-  boxes = boxes.slice(0, opts.photoCount);
+  const preferredCount = opts.preferredFormat.photoCount;
 
-  if (boxes.length !== opts.photoCount) {
+  let kind: HoleKind = "transparent";
+  let boxes = pickPhotoHoles(
+    detectBoxes(imageData.data, width, height, minArea, kind),
+    width,
+    height,
+  );
+  if (boxes.length === 0) {
+    kind = "white";
+    boxes = pickPhotoHoles(
+      detectBoxes(imageData.data, width, height, minArea, kind),
+      width,
+      height,
+    );
+  }
+
+  if (boxes.length === 0) {
     throw new FrameDetectionError(
-      `Se esperaban ${opts.photoCount} huecos para fotos (rectángulos blancos sólidos) y se detectaron ${boxes.length}. Revisa que cada hueco sea blanco puro y no se toque con otro.`,
+      "No se detectó ningún hueco para fotos en el diseño. Deja transparente (o en blanco puro) cada zona donde debe ir una foto.",
+    );
+  }
+
+  let format = getFormatByPhotoCount(boxes.length);
+  if (!format && boxes.length > preferredCount) {
+    boxes = boxes.slice(0, preferredCount);
+    format = opts.preferredFormat;
+  }
+  if (!format) {
+    throw new FrameDetectionError(
+      `Se detectaron ${boxes.length} huecos para fotos y los formatos disponibles son de 1 a 4 fotos. Revisa que cada hueco esté separado de los demás.`,
     );
   }
   boxes = sortReadingOrder(boxes);
@@ -207,8 +261,9 @@ export async function processCustomFrameImage(
   }));
 
   // Punch: vuelve transparente cada hueco detectado para que la foto
-  // compuesta se vea a través del marco.
-  for (const b of photoSlots) {
+  // compuesta se vea a través del marco. Si el diseño ya traía los huecos
+  // transparentes no hay nada que recortar.
+  for (const b of kind === "white" ? photoSlots : []) {
     const x0 = Math.max(0, b.x);
     const y0 = Math.max(0, b.y);
     const x1 = Math.min(width, b.x + b.width);
@@ -228,14 +283,14 @@ export async function processCustomFrameImage(
   const template: FrameTemplate = {
     id,
     name: opts.name,
-    compatibleFormatId: opts.compatibleFormatId,
+    compatibleFormatId: format.id,
     backgroundImageUrl: pngDataUrl,
     photoSlots,
     qrSlot,
     canvasSize: { width, height },
   };
 
-  return { template, pngDataUrl };
+  return { template, format };
 }
 
 // ── Almacenamiento por operador ──

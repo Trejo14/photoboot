@@ -4,7 +4,11 @@ import {
   getTemplatesForFormat,
   type FrameTemplate,
 } from "@/lib/frame-templates";
-import type { PhotoFormat } from "@/lib/formats";
+import {
+  getFormatCanvasSize,
+  PRINT_DPI,
+  type PhotoFormat,
+} from "@/lib/formats";
 import type { LicenseInfo } from "@/lib/license";
 import { getEffectivePlan, canUseFrames } from "@/lib/plan";
 import {
@@ -44,6 +48,7 @@ export function FrameSelectionScreen({
   const [customFrames, setCustomFrames] = useState<FrameTemplate[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -64,14 +69,24 @@ export function FrameSelectionScreen({
     if (!file) return;
     setUploading(true);
     setUploadError(null);
+    setUploadNotice(null);
     try {
-      const { template } = await processCustomFrameImage(file, {
-        name: file.name.replace(/\.\w+$/, ""),
-        compatibleFormatId: format.id,
-        photoCount: format.photoCount,
-      });
+      const { template, format: detected } = await processCustomFrameImage(
+        file,
+        { name: file.name.replace(/\.\w+$/, ""), preferredFormat: format },
+      );
       await addCustomFrame(email, template);
-      setCustomFrames((prev) => [...prev, template]);
+      if (detected.id === format.id) {
+        setCustomFrames((prev) => [...prev, template]);
+      } else {
+        // El diseño manda: se guarda en el formato que corresponde a sus
+        // huecos, aunque no sea el que está abierto ahora.
+        setUploadNotice(
+          `El diseño tiene ${detected.photoCount} ${
+            detected.photoCount === 1 ? "hueco" : "huecos"
+          } para fotos, así que se guardó en el formato "${detected.name}". Lo verás al elegir ese formato.`,
+        );
+      }
     } catch (err) {
       setUploadError(
         err instanceof FrameDetectionError
@@ -89,6 +104,8 @@ export function FrameSelectionScreen({
   }
 
   const templates = source === "system" ? systemTemplates : customFrames;
+  const { printSizeMm } = format;
+  const recommendedPx = getFormatCanvasSize(format);
 
   return (
     <div className="flex min-h-dvh flex-col items-center gap-8 overflow-y-auto bg-background p-6 py-10">
@@ -153,19 +170,26 @@ export function FrameSelectionScreen({
           />
           <Button
             variant="secondary"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() =>
+              locked ? onOpenLicense() : fileInputRef.current?.click()
+            }
             disabled={uploading}
           >
             {uploading ? "Procesando…" : "Subir marco (PNG)"}
           </Button>
           <p className="max-w-md text-center text-xs text-muted-foreground">
-            El PNG debe tener {format.photoCount}{" "}
-            {format.photoCount === 1
-              ? "rectángulo blanco sólido"
-              : "rectángulos blancos sólidos"}{" "}
-            marcando dónde van las fotos — el sistema detecta esos huecos
-            automáticamente y los vuelve transparentes.
+            Deja transparente (o en blanco sólido) cada zona donde va una
+            foto: el sistema detecta esos huecos automáticamente y acomoda
+            las fotos ahí. Para {format.name} el diseño debe medir{" "}
+            {printSizeMm.widthMm / 10} cm de ancho x {printSizeMm.heightMm / 10}{" "}
+            cm de largo ({recommendedPx.width} x {recommendedPx.height} px a{" "}
+            {PRINT_DPI} dpi).
           </p>
+          {uploadNotice && (
+            <p className="max-w-md text-center text-xs text-[#22d3ee]">
+              {uploadNotice}
+            </p>
+          )}
           {uploadError && (
             <p className="max-w-md text-center text-xs text-destructive">
               {uploadError}
